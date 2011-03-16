@@ -22,59 +22,29 @@
  * the Free Software Foundation, 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301, USA.
  */
-
-#include <string.h>
-#include <git2.h>
-
 #include "test_lib.h"
 #include "test_helpers.h"
+#include "cache.h"
 
-DECLARE_SUITE(core);
-DECLARE_SUITE(rawobjects);
-DECLARE_SUITE(objread);
-DECLARE_SUITE(objwrite);
-DECLARE_SUITE(commit);
-DECLARE_SUITE(revwalk);
-DECLARE_SUITE(index);
-DECLARE_SUITE(hashtable);
-DECLARE_SUITE(tag);
-DECLARE_SUITE(tree);
-DECLARE_SUITE(refs);
-DECLARE_SUITE(sqlite);
-DECLARE_SUITE(repository);
-DECLARE_SUITE(threads);
 
-static libgit2_suite suite_methods[]= {
-	SUITE_NAME(core),
-	SUITE_NAME(rawobjects),
-	SUITE_NAME(objread),
-	SUITE_NAME(objwrite),
-	SUITE_NAME(commit),
-	SUITE_NAME(revwalk),
-	SUITE_NAME(index),
-	SUITE_NAME(hashtable),
-	SUITE_NAME(tag),
-	SUITE_NAME(tree),
-	SUITE_NAME(refs),
-	SUITE_NAME(sqlite),
-	SUITE_NAME(repository),
-	SUITE_NAME(threads),
-};
+typedef struct {
+	git_cached_obj cached;
+	unsigned int __dummy;
+} ttest_obj;
 
-#define GIT_SUITE_COUNT (ARRAY_SIZE(suite_methods))
-
-int main(int GIT_UNUSED(argc), char *GIT_UNUSED(argv[]))
+void *cache0_thread(void *data)
 {
-	unsigned int i, failures;
+	git_cache *cache = (git_cache*)data;
+	unsigned int num;
 
-	GIT_UNUSED_ARG(argc);
-	GIT_UNUSED_ARG(argv);
 
-	failures = 0;
 
-	for (i = 0; i < GIT_SUITE_COUNT; ++i)
-		failures += git_testsuite_run(suite_methods[i]());
-
-	return failures ? -1 : 0;
 }
 
+BEGIN_TEST(cache0, "run several threads polling the cache at the same time")
+
+END_TEST
+
+BEGIN_SUITE(threads)
+	ADD_TEST(cache0);
+END_SUITE

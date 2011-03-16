@@ -1,6 +1,7 @@
 #ifndef INCLUDE_thread_utils_h__
 #define INCLUDE_thread_utils_h__
 
+#ifdef GIT_THREADS
 
 #define git_thread pthread_t
 #define git_thread_create(thread, attr, start_routine, arg) pthread_create(thread, attr, start_routine, arg)
@@ -22,6 +23,31 @@
 #define git_cond_wait(c, l)	pthread_cond_wait(c, l)
 #define git_cond_signal(c)		pthread_cond_signal(c)
 #define git_cond_broadcast(c)	pthread_cond_broadcast(c)
+
+#else
+
+#define git_thread unsigned int
+#define git_thread_create(thread, attr, start_routine, arg) (void)0
+#define git_thread_kill(thread) (void)0
+#define git_thread_exit(status) (void)0
+#define git_thread_join(id, status) (void)0
+
+/* Pthreads Mutex */
+#define git_mutex unsigned int
+#define git_mutex_init(a) (void)0
+#define git_mutex_lock(a) (void)0
+#define git_mutex_unlock(a) (void)0
+#define git_mutex_free(a) (void)0
+
+/* Pthreads condition vars */
+#define git_cond unsigned int
+#define git_cond_init(c, a)	(void)0
+#define git_cond_free(c) (void)0
+#define git_cond_wait(c, l)	(void)0
+#define git_cond_signal(c) (void)0
+#define git_cond_broadcast(c) (void)0
+
+#endif
 
 extern int git_online_cpus(void);
 
