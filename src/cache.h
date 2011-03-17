@@ -11,7 +11,7 @@ typedef void (*git_cached_obj_freeptr)(void *);
 
 typedef struct {
 	git_oid oid;
-	unsigned int refcount;
+	git_atomic refcount;
 } git_cached_obj;
 
 typedef struct {

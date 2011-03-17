@@ -37,8 +37,6 @@ void *cache0_thread(void *data)
 	git_cache *cache = (git_cache*)data;
 	unsigned int num;
 
-
-
 }
 
 BEGIN_TEST(cache0, "run several threads polling the cache at the same time")

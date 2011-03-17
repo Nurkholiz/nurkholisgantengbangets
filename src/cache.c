@@ -39,12 +39,12 @@ GIT_INLINE(int) cached_obj_compare(git_cached_obj *obj, const git_oid *oid)
 
 GIT_INLINE(void) cached_obj_incref(git_cached_obj *obj)
 {
-	obj->refcount++;
+	git_atomic_inc(&obj->refcount);
 }
 
 GIT_INLINE(void) cached_obj_decref(git_cached_obj *obj, git_cached_obj_freeptr free_obj)
 {
-	if (--obj->refcount == 0)
+	if (git_atomic_dec(&obj->refcount) == 0)
 		free_obj(obj);
 }
 
