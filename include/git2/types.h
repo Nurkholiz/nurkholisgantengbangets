@@ -137,7 +137,7 @@ typedef struct git_error {
 	char *msg;
 	struct git_error *child;
 	const char *file;
-	long line;
+	unsigned int line;
 } git_error;
 
 /** Time in a signature */

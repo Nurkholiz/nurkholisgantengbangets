@@ -14,6 +14,7 @@
 #include "remote.h"
 #include "fetch.h"
 #include "refs.h"
+#include "error.h"
 
 static int refspec_parse(git_refspec *refspec, const char *str)
 {

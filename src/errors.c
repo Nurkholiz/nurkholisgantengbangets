@@ -15,7 +15,7 @@
 
 #define ERROR_MSG_MAXSZ 1024
 
-static GIT_TLS char g_last_error[1024];
+static GIT_TLS git_error *git_errno;
 
 static struct {
 	int num;
@@ -64,45 +64,6 @@ const char *git_strerror(int num)
 	return "Unknown error";
 }
 
-void git___rethrow(const char *msg, ...)
-{
-	char new_error[1024];
-	char *old_error = NULL;
-
-	va_list va;
-
-	va_start(va, msg);
-	vsnprintf(new_error, sizeof(new_error), msg, va);
-	va_end(va);
-
-	old_error = strdup(g_last_error);
-	snprintf(g_last_error, sizeof(g_last_error), "%s \n	- %s", new_error, old_error);
-	free(old_error);
-}
-
-void git___throw(const char *msg, ...)
-{
-	va_list va;
-
-	va_start(va, msg);
-	vsnprintf(g_last_error, sizeof(g_last_error), msg, va);
-	va_end(va);
-}
-
-const char *git_lasterror(void)
-{
-	if (!g_last_error[0])
-		return NULL;
-
-	return g_last_error;
-}
-
-void git_clearerror(void)
-{
-	g_last_error[0] = '\0';
-}
-
-
 static git_error git_error_OOM = {
 	GIT_ENOMEM,
 	"out of memory",
@@ -126,9 +87,8 @@ git_error * git_error_oom(void)
 	return &git_error_OOM;
 }
 
-#undef git_error_createf
-git_error * git_error_createf(const char *file, int line, int code,
-			      git_error *child, const char *fmt, ...)
+git_error * git_error_createf(const char *file, unsigned int line, int code,
+			      const char *fmt, ...)
 {
 	git_error *err;
 	va_list ap;
@@ -137,6 +97,7 @@ git_error * git_error_createf(const char *file, int line, int code,
 	if (err == NULL)
 		return git_error_oom();
 
+	memset(err, 0x0, sizeof(git_error));
 	err->msg = git__malloc(ERROR_MSG_MAXSZ);
 	if (err->msg == NULL) {
 		free(err);
@@ -148,33 +109,30 @@ git_error * git_error_createf(const char *file, int line, int code,
 	va_end(ap);
 
 	err->code  = code;
-	err->child = child;
+	err->child = git_errno;
 	err->file  = file;
 	err->line  = line;
+
+	git_errno = err;
 
 	return err;
 }
 
-#undef git_error_create
-git_error * git_error_create(const char *file, int line, int code,
-			      git_error *child, const char *msg)
-{
-	return git_error_createf(file, line, code, child, "%s", msg);
-}
-
 #undef git_error_quick_wrap
 git_error * git_error_quick_wrap(const char *file, int line,
-				 git_error *child, const char *msg)
+								 git_error_code error, const char *msg)
 {
-	if (child == GIT_SUCCESS)
+	if (error == GIT_SUCCESS)
 		return GIT_SUCCESS;
 
-	return git_error_createf(file, line, child->code,
-				 child, "%s", msg);
+	return git_error_createf(file, line, error, "%s", msg);
 }
 
 void git_error_free(git_error *err)
 {
+	if (err == NULL)
+		return;
+
 	if (err->child)
 		git_error_free(err->child);
 
@@ -182,4 +140,23 @@ void git_error_free(git_error *err)
 		free(err->msg);
 
 	free(err);
+}
+
+void git_clearerror(void)
+{
+	git_error_free(git_errno);
+	git_errno = NULL;
+}
+
+const char *git_lasterror(void)
+{
+	return git_errno == NULL ? NULL : git_errno->msg;
+}
+
+void git_error_print_stack(void)
+{
+	git_error *error;
+
+	for (error = git_errno; error; error = error->child)
+		fprintf(stderr, "%s:%u %s\n", error->file, error->line, error->msg);
 }

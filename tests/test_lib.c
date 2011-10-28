@@ -85,6 +85,8 @@ static void fail_test(git_test *tc, const char *file, int line, const char *mess
 	tc->message = strdup(message);
 	tc->failed_pos = strdup(buf);
 
+	git_error_print_stack();
+
 	if (last_error)
 		tc->error_message = strdup(last_error);
 
