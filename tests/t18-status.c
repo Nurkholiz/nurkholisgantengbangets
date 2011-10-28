@@ -430,6 +430,8 @@ BEGIN_TEST(singlestatus4, "can't determine the status for a folder")
 	git_repository_free(repo);
 
 	git_futils_rmdir_r(TEMP_REPO_FOLDER, 1);
+
+	git_clearerror();
 END_TEST
 
 BEGIN_SUITE(status)

@@ -92,6 +92,7 @@ void test_status_worktree__cleanup(void)
 	_repository = NULL;
 
 	cl_fixture_cleanup("status");
+	git_clearerror();
 }
 
 /**

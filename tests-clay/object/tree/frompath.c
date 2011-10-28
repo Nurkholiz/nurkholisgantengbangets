@@ -23,6 +23,7 @@ void test_object_tree_frompath__cleanup(void)
 {
 	git_tree_close(tree);
 	git_repository_free(repo);
+	git_clearerror();
 }
 
 static void assert_tree_from_path(git_tree *root, const char *path, int expected_result, const char *expected_raw_oid)
