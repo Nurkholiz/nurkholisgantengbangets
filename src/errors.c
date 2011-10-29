@@ -13,8 +13,6 @@
 
 #include <stdarg.h>
 
-#define ERROR_MSG_MAXSZ 1024
-
 static GIT_TLS git_error *git_errno;
 
 static struct {
@@ -92,20 +90,28 @@ git_error * git_error_createf(const char *file, unsigned int line, int code,
 {
 	git_error *err;
 	va_list ap;
+	size_t size;
 
 	err = git__malloc(sizeof(git_error));
 	if (err == NULL)
 		return git_error_oom();
 
 	memset(err, 0x0, sizeof(git_error));
-	err->msg = git__malloc(ERROR_MSG_MAXSZ);
+
+	va_start(ap, fmt);
+	size = p_vsnprintf(err->msg, 0, fmt, ap);
+	va_end(ap);
+
+	size++;
+
+	err->msg = git__malloc(size);
 	if (err->msg == NULL) {
 		free(err);
 		return git_error_oom();
 	}
 
 	va_start(ap, fmt);
-	p_vsnprintf(err->msg, ERROR_MSG_MAXSZ, fmt, ap);
+	size = p_vsnprintf(err->msg, size, fmt, ap);
 	va_end(ap);
 
 	err->code  = code;
