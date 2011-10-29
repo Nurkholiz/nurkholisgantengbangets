@@ -10,12 +10,15 @@
 #define DO_ALLOC(TYPE) ((TYPE*) malloc(sizeof(TYPE)))
 #define GIT_MAX_TEST_CASES 64
 
+extern git_error *git_errno;
+
 struct git_test {
 	char *name;
 	char *message;
 	char *failed_pos;
 	char *description;
 	char *error_message;
+	git_error *error_stack;
 
 	git_testfunc function;
 	unsigned failed:1, ran:1;
@@ -36,6 +39,7 @@ static void test_free(git_test *t)
 		free(t->failed_pos);
 		free(t->message);
 		free(t->error_message);
+		git_error_free(t->error_stack);
 		free(t);
 	}
 }
@@ -84,8 +88,8 @@ static void fail_test(git_test *tc, const char *file, int line, const char *mess
 	tc->failed = 1;
 	tc->message = strdup(message);
 	tc->failed_pos = strdup(buf);
-
-	git_error_print_stack();
+	tc->error_stack = git_errno;
+	git_errno = NULL;
 
 	if (last_error)
 		tc->error_message = strdup(last_error);
@@ -167,6 +171,8 @@ static void print_details(git_testsuite *ts)
 					failCount, tc->description, tc->name, tc->failed_pos, tc->message);
 				if (tc->error_message)
 					printf("\tError: %s\n", tc->error_message);
+				fprintf(stderr, "\tError stack trace:\n");
+				git_error_print_stack(tc->error_stack);
 			}
 		}
 	}
