@@ -18,7 +18,7 @@
 git_error * git_error_createf(const char *file, unsigned int line, int code,
 			      const char *msg, ...) GIT_FORMAT_PRINTF(4, 5);
 
-git_error * git_error_quick_wrap(const char *file, int line,
+git_error * git_error__quick_wrap(const char *file, int line,
 				 git_error_code error, const char *msg);
 
 /*
@@ -26,7 +26,7 @@ git_error * git_error_quick_wrap(const char *file, int line,
  * child's fields.
  */
 #define git_error_quick_wrap(error, message)				\
-	git_error_quick_wrap(__FILE__, __LINE__, error, message)
+	git_error__quick_wrap(__FILE__, __LINE__, error, message)
 
 /*
  * Use this function to wrap functions like

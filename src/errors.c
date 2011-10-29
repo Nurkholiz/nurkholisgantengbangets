@@ -124,8 +124,7 @@ git_error * git_error_createf(const char *file, unsigned int line, int code,
 	return err;
 }
 
-#undef git_error_quick_wrap
-git_error * git_error_quick_wrap(const char *file, int line,
+git_error * git_error__quick_wrap(const char *file, int line,
 								 git_error_code error, const char *msg)
 {
 	if (error == GIT_SUCCESS)
