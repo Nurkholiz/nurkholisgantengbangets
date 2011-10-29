@@ -148,7 +148,7 @@ GIT_EXTERN(void) git_error_free(git_error *err);
  * A bog standard stack trace. You can use it if you don't want to do
  * anything more complex in your UI.
  */
-GIT_EXTERN(void) git_error_print_stack(void);
+GIT_EXTERN(void) git_error_print_stack(git_error *error_in);
 
 /** @} */
 GIT_END_DECL

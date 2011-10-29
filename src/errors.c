@@ -13,7 +13,7 @@
 
 #include <stdarg.h>
 
-static GIT_TLS git_error *git_errno;
+GIT_TLS git_error *git_errno;
 
 static struct {
 	int num;
@@ -158,10 +158,13 @@ const char *git_lasterror(void)
 	return git_errno == NULL ? NULL : git_errno->msg;
 }
 
-void git_error_print_stack(void)
+void git_error_print_stack(git_error *error_in)
 {
 	git_error *error;
 
-	for (error = git_errno; error; error = error->child)
+	if (error_in == NULL)
+		error_in = git_errno;
+
+	for (error = error_in; error; error = error->child)
 		fprintf(stderr, "%s:%u %s\n", error->file, error->line, error->msg);
 }
