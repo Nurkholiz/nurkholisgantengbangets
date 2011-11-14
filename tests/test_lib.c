@@ -152,6 +152,14 @@ void git_testsuite_add(git_testsuite *ts, git_testfunc test)
 	ts->list[ts->count++] = create_test(test);
 }
 
+static void print_trace(git_error *error)
+{
+	git_error *err;
+
+	for (err = error; err; err = err->child)
+		printf("\t%s:%u %s\n", err->file, err->line, err->msg);
+}
+
 static void print_details(git_testsuite *ts)
 {
 	int i;
@@ -172,7 +180,7 @@ static void print_details(git_testsuite *ts)
 				if (tc->error_message)
 					printf("\tError: %s\n", tc->error_message);
 				fprintf(stderr, "\tError stack trace:\n");
-				git_error_print_stack(tc->error_stack);
+				print_trace(tc->error_stack);
 			}
 		}
 	}
