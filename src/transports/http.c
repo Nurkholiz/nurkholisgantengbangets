@@ -15,6 +15,7 @@
 #include "buffer.h"
 #include "pkt.h"
 #include "refs.h"
+#include "pack.h"
 #include "fetch.h"
 #include "filebuf.h"
 #include "repository.h"
@@ -389,18 +390,18 @@ static int on_body_parse_response(http_parser *parser, const char *str, size_t l
 		git_buf_consume(buf, line_end);
 
 		if (pkt->type == GIT_PKT_PACK) {
-			free(pkt);
+			git__free(pkt);
 			t->pack_ready = 1;
 			return 0;
 		}
 
 		if (pkt->type == GIT_PKT_NAK) {
-			free(pkt);
+			git__free(pkt);
 			return 0;
 		}
 
 		if (pkt->type != GIT_PKT_ACK) {
-			free(pkt);
+			git__free(pkt);
 			continue;
 		}
 
@@ -702,7 +703,7 @@ static int http_download_pack(char **out, git_transport *transport, git_reposito
 	}
 
 	/* A bit dodgy, but we need to keep the pack at the temporary path */
-	error = git_filebuf_commit_at(&file, file.path_lock);
+	error = git_filebuf_commit_at(&file, file.path_lock, GIT_PACK_FILE_MODE);
 
 cleanup:
 	if (error < GIT_SUCCESS)
@@ -749,13 +750,13 @@ static void http_free(git_transport *transport)
 	}
 	git_vector_free(common);
 	git_buf_free(&t->buf);
-	free(t->heads);
-	free(t->content_type);
-	free(t->host);
-	free(t->port);
-	free(t->service);
-	free(t->parent.url);
-	free(t);
+	git__free(t->heads);
+	git__free(t->content_type);
+	git__free(t->host);
+	git__free(t->port);
+	git__free(t->service);
+	git__free(t->parent.url);
+	git__free(t);
 }
 
 int git_transport_http(git_transport **out)

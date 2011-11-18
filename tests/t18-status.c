@@ -37,7 +37,7 @@ static int file_create(const char *filename, const char *content)
 {
 	int fd;
 
-	fd = p_creat(filename, 0644);
+	fd = p_creat(filename, 0666);
 	if (fd == 0)
 		return GIT_ERROR;
 	if (p_write(fd, content, strlen(content)) != 0)
@@ -136,7 +136,7 @@ BEGIN_TEST(statuscb0, "test retrieving status for worktree of repository")
 	struct status_entry_counts counts;
 
 	must_pass(copydir_recurs(STATUS_WORKDIR_FOLDER, TEMP_REPO_FOLDER));
-	must_pass(git_futils_mv_atomic(STATUS_REPOSITORY_TEMP_FOLDER, TEST_STD_REPO_FOLDER));
+	must_pass(p_rename(STATUS_REPOSITORY_TEMP_FOLDER, TEST_STD_REPO_FOLDER));
 	must_pass(git_repository_open(&repo, TEST_STD_REPO_FOLDER));
 
 	memset(&counts, 0x0, sizeof(struct status_entry_counts));
@@ -223,7 +223,7 @@ BEGIN_TEST(statuscb2, "test retrieving status for a purged worktree of an valid 
 	struct status_entry_counts counts;
 
 	must_pass(copydir_recurs(STATUS_WORKDIR_FOLDER, TEMP_REPO_FOLDER));
-	must_pass(git_futils_mv_atomic(STATUS_REPOSITORY_TEMP_FOLDER, TEST_STD_REPO_FOLDER));
+	must_pass(p_rename(STATUS_REPOSITORY_TEMP_FOLDER, TEST_STD_REPO_FOLDER));
 	must_pass(git_repository_open(&repo, TEST_STD_REPO_FOLDER));
 
 	/* Purging the working */
@@ -309,12 +309,12 @@ BEGIN_TEST(statuscb3, "test retrieving status for a worktree where a file and a 
 	struct status_entry_counts counts;
 
 	must_pass(copydir_recurs(STATUS_WORKDIR_FOLDER, TEMP_REPO_FOLDER));
-	must_pass(git_futils_mv_atomic(STATUS_REPOSITORY_TEMP_FOLDER, TEST_STD_REPO_FOLDER));
+	must_pass(p_rename(STATUS_REPOSITORY_TEMP_FOLDER, TEST_STD_REPO_FOLDER));
 	must_pass(git_repository_open(&repo, TEST_STD_REPO_FOLDER));
 
-	must_pass(git_futils_mv_atomic(TEMP_REPO_FOLDER "current_file", TEMP_REPO_FOLDER "swap"));
-	must_pass(git_futils_mv_atomic(TEMP_REPO_FOLDER "subdir", TEMP_REPO_FOLDER "current_file"));
-	must_pass(git_futils_mv_atomic(TEMP_REPO_FOLDER "swap", TEMP_REPO_FOLDER "subdir"));
+	must_pass(p_rename(TEMP_REPO_FOLDER "current_file", TEMP_REPO_FOLDER "swap"));
+	must_pass(p_rename(TEMP_REPO_FOLDER "subdir", TEMP_REPO_FOLDER "current_file"));
+	must_pass(p_rename(TEMP_REPO_FOLDER "swap", TEMP_REPO_FOLDER "subdir"));
 
 	must_pass(file_create(TEMP_REPO_FOLDER ".HEADER", "dummy"));
 	must_pass(file_create(TEMP_REPO_FOLDER "42-is-not-prime.sigh", "dummy"));
@@ -341,7 +341,7 @@ BEGIN_TEST(singlestatus0, "test retrieving status for single file")
 	int i;
 
 	must_pass(copydir_recurs(STATUS_WORKDIR_FOLDER, TEMP_REPO_FOLDER));
-	must_pass(git_futils_mv_atomic(STATUS_REPOSITORY_TEMP_FOLDER, TEST_STD_REPO_FOLDER));
+	must_pass(p_rename(STATUS_REPOSITORY_TEMP_FOLDER, TEST_STD_REPO_FOLDER));
 	must_pass(git_repository_open(&repo, TEST_STD_REPO_FOLDER));
 
 	for (i = 0; i < ENTRY_COUNT0; ++i) {
@@ -360,7 +360,7 @@ BEGIN_TEST(singlestatus1, "test retrieving status for nonexistent file")
 	int error;
 
 	must_pass(copydir_recurs(STATUS_WORKDIR_FOLDER, TEMP_REPO_FOLDER));
-	must_pass(git_futils_mv_atomic(STATUS_REPOSITORY_TEMP_FOLDER, TEST_STD_REPO_FOLDER));
+	must_pass(p_rename(STATUS_REPOSITORY_TEMP_FOLDER, TEST_STD_REPO_FOLDER));
 	must_pass(git_repository_open(&repo, TEST_STD_REPO_FOLDER));
 
 	// "nonexistent" does not exist in HEAD, Index or the worktree
@@ -400,7 +400,7 @@ BEGIN_TEST(singlestatus3, "test retrieving status for a new file in an empty rep
 	must_pass(remove_placeholders(TEST_STD_REPO_FOLDER, "dummy-marker.txt"));
 
 	git_path_join(file_path, TEMP_REPO_FOLDER, filename);
-	fd = p_creat(file_path, 0644);
+	fd = p_creat(file_path, 0666);
 	must_pass(fd);
 	must_pass(p_write(fd, "new_file\n", 9));
 	must_pass(p_close(fd));
@@ -421,7 +421,7 @@ BEGIN_TEST(singlestatus4, "can't determine the status for a folder")
 	int error;
 
 	must_pass(copydir_recurs(STATUS_WORKDIR_FOLDER, TEMP_REPO_FOLDER));
-	must_pass(git_futils_mv_atomic(STATUS_REPOSITORY_TEMP_FOLDER, TEST_STD_REPO_FOLDER));
+	must_pass(p_rename(STATUS_REPOSITORY_TEMP_FOLDER, TEST_STD_REPO_FOLDER));
 	must_pass(git_repository_open(&repo, TEST_STD_REPO_FOLDER));
 
 	error = git_status_file(&status_flags, repo, "subdir");

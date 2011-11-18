@@ -6,9 +6,29 @@
  */
 
 #include "common.h"
-#include "utf8-conv.h"
+#include "utf-conv.h"
 
-wchar_t* conv_utf8_to_utf16(const char* str)
+/*
+ * Default codepage value
+ */
+static int _active_codepage = CP_UTF8;
+
+void gitwin_set_codepage(unsigned int codepage)
+{
+	_active_codepage = codepage;
+}
+
+unsigned int gitwin_get_codepage(void)
+{
+	return _active_codepage;
+}
+
+void gitwin_set_utf8(void)
+{
+	_active_codepage = CP_UTF8;
+}
+
+wchar_t* gitwin_to_utf16(const char* str)
 {
 	wchar_t* ret;
 	int cb;
@@ -29,15 +49,15 @@ wchar_t* conv_utf8_to_utf16(const char* str)
 
 	ret = (wchar_t*)git__malloc(cb);
 
-	if (MultiByteToWideChar(CP_UTF8, 0, str, -1, ret, cb) == 0) {
-		free(ret);
+	if (MultiByteToWideChar(_active_codepage, 0, str, -1, ret, cb) == 0) {
+		git__free(ret);
 		ret = NULL;
 	}
 
 	return ret;
 }
 
-char* conv_utf16_to_utf8(const wchar_t* str)
+char* gitwin_from_utf16(const wchar_t* str)
 {
 	char* ret;
 	int cb;
@@ -58,8 +78,8 @@ char* conv_utf16_to_utf8(const wchar_t* str)
 
 	ret = (char*)git__malloc(cb);
 
-	if (WideCharToMultiByte(CP_UTF8, 0, str, -1, ret, cb, NULL, NULL) == 0) {
-		free(ret);
+	if (WideCharToMultiByte(_active_codepage, 0, str, -1, ret, cb, NULL, NULL) == 0) {
+		git__free(ret);
 		ret = NULL;
 	}
 

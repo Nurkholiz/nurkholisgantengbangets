@@ -25,8 +25,8 @@ static int reflog_init(git_reflog **reflog, git_reference *ref)
 	log->ref_name = git__strdup(ref->name);
 
 	if (git_vector_init(&log->entries, 0, NULL) < 0) {
-		free(log->ref_name);
-		free(log);
+		git__free(log->ref_name);
+		git__free(log);
 		return GIT_ENOMEM;
 	}
 
@@ -71,7 +71,7 @@ static int reflog_write(const char *log_path, const char *oid_old,
 	}
 
 	git_filebuf_write(&fbuf, log.ptr, log.size);
-	error = git_filebuf_commit(&fbuf);
+	error = git_filebuf_commit(&fbuf, GIT_REFLOG_FILE_MODE);
 
 	git_buf_free(&log);
 	return error == GIT_SUCCESS ? GIT_SUCCESS : git__rethrow(error, "Failed to write reflog");
@@ -86,8 +86,8 @@ static int reflog_parse(git_reflog *log, const char *buf, size_t buf_size)
 #define seek_forward(_increase) { \
 	if (_increase >= buf_size) { \
 		if (entry->committer) \
-			free(entry->committer); \
-		free(entry); \
+			git__free(entry->committer); \
+		git__free(entry); \
 		return git__throw(GIT_ERROR, "Failed to seek forward. Buffer size exceeded"); \
 	} \
 	buf += _increase; \
@@ -101,13 +101,13 @@ static int reflog_parse(git_reflog *log, const char *buf, size_t buf_size)
 		entry->committer = NULL;
 
 		if (git_oid_fromstrn(&entry->oid_old, buf, GIT_OID_HEXSZ) < GIT_SUCCESS) {
-			free(entry);
+			git__free(entry);
 			return GIT_ERROR;
 		}
 		seek_forward(GIT_OID_HEXSZ + 1);
 
 		if (git_oid_fromstrn(&entry->oid_cur, buf, GIT_OID_HEXSZ) < GIT_SUCCESS) {
-			free(entry);
+			git__free(entry);
 			return GIT_ERROR;
 		}
 		seek_forward(GIT_OID_HEXSZ + 1);
@@ -120,13 +120,13 @@ static int reflog_parse(git_reflog *log, const char *buf, size_t buf_size)
 
 		entry->committer = git__malloc(sizeof(git_signature));
 		if (entry->committer == NULL) {
-			free(entry);
+			git__free(entry);
 			return GIT_ENOMEM;
 		}
 
 		if ((error = git_signature__parse(entry->committer, &ptr, buf + 1, NULL, *buf)) < GIT_SUCCESS) {
-			free(entry->committer);
-			free(entry);
+			git__free(entry->committer);
+			git__free(entry);
 			return git__rethrow(error, "Failed to parse reflog. Could not parse signature");
 		}
 
@@ -164,13 +164,13 @@ void git_reflog_free(git_reflog *reflog)
 
 		git_signature_free(entry->committer);
 
-		free(entry->msg);
-		free(entry);
+		git__free(entry->msg);
+		git__free(entry);
 	}
 
 	git_vector_free(&reflog->entries);
-	free(reflog->ref_name);
-	free(reflog);
+	git__free(reflog->ref_name);
+	git__free(reflog);
 }
 
 int git_reflog_read(git_reflog **reflog, git_reference *ref)
@@ -215,23 +215,37 @@ int git_reflog_write(git_reference *ref, const git_oid *oid_old,
 	const git_oid *oid;
 
 	if ((error = git_reference_resolve(&r, ref)) < GIT_SUCCESS)
-		return git__rethrow(error, "Failed to write reflog. Cannot resolve reference `%s`", ref->name);
+		return git__rethrow(error,
+			"Failed to write reflog. Cannot resolve reference `%s`", ref->name);
 
 	oid = git_reference_oid(r);
-	if (oid == NULL)
-		return git__throw(GIT_ERROR, "Failed to write reflog. Cannot resolve reference `%s`", r->name);
+	if (oid == NULL) {
+		git_reference_free(r);
+		return git__throw(GIT_ERROR,
+			"Failed to write reflog. Cannot resolve reference `%s`", r->name);
+	}
 
 	git_oid_to_string(new, GIT_OID_HEXSZ+1, oid);
 
-	git_path_join_n(log_path, 3, ref->owner->path_repository, GIT_REFLOG_DIR, ref->name);
+	git_path_join_n(log_path, 3,
+		ref->owner->path_repository, GIT_REFLOG_DIR, ref->name);
+
+	git_reference_free(r);
 
 	if (git_futils_exists(log_path)) {
-		if ((error = git_futils_mkpath2file(log_path)) < GIT_SUCCESS)
-			return git__rethrow(error, "Failed to write reflog. Cannot create reflog directory");
+		error = git_futils_mkpath2file(log_path, GIT_REFLOG_DIR_MODE);
+		if (error < GIT_SUCCESS)
+			return git__rethrow(error,
+				"Failed to write reflog. Cannot create reflog directory");
+
 	} else if (git_futils_isfile(log_path)) {
-		return git__throw(GIT_ERROR, "Failed to write reflog. `%s` is directory", log_path);
-	} else if (oid_old == NULL)
-		return git__throw(GIT_ERROR, "Failed to write reflog. Old OID cannot be NULL for existing reference");
+		return git__throw(GIT_ERROR,
+			"Failed to write reflog. `%s` is directory", log_path);
+
+	} else if (oid_old == NULL) {
+		return git__throw(GIT_ERROR,
+			"Failed to write reflog. Old OID cannot be NULL for existing reference");
+	}
 
 	if (oid_old)
 		git_oid_to_string(old, GIT_OID_HEXSZ+1, oid_old);

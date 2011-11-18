@@ -17,7 +17,7 @@ int p_open(const char *path, int flags)
 	return open(path, flags | O_BINARY);
 }
 
-int p_creat(const char *path, int mode)
+int p_creat(const char *path, mode_t mode)
 {
 	return open(path, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, mode);
 }
@@ -37,6 +37,20 @@ int p_getcwd(char *buffer_out, size_t size)
 
 	git_path_join(buffer_out, buffer_out, "");	//Ensure the path ends with a trailing slash
 	return GIT_SUCCESS;
+}
+
+int p_rename(const char *from, const char *to)
+{
+	if (!link(from, to)) {
+		p_unlink(from);
+		return GIT_SUCCESS;
+	}
+
+	if (!rename(from, to))
+		return GIT_SUCCESS;
+
+	return GIT_ERROR;
+
 }
 
 #endif

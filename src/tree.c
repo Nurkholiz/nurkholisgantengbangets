@@ -15,6 +15,8 @@
 #define MAX_FILEMODE 0777777
 #define MAX_FILEMODE_BYTES 6
 
+#define ENTRY_IS_TREE(e) ((e)->attr & 040000)
+
 static int valid_attributes(const int attributes)
 {
 	return attributes >= 0 && attributes <= MAX_FILEMODE;
@@ -31,8 +33,8 @@ static int entry_sort_cmp(const void *a, const void *b)
 	const git_tree_entry *entry_b = (const git_tree_entry *)(b);
 
 	return git_futils_cmp_path(
-		entry_a->filename, entry_a->filename_len, entry_a->attr & 040000,
-		entry_b->filename, entry_b->filename_len, entry_b->attr & 040000);
+		entry_a->filename, entry_a->filename_len, ENTRY_IS_TREE(entry_a),
+		entry_b->filename, entry_b->filename_len, ENTRY_IS_TREE(entry_b));
 }
 
 
@@ -128,12 +130,12 @@ void git_tree__free(git_tree *tree)
 		git_tree_entry *e;
 		e = git_vector_get(&tree->entries, i);
 
-		free(e->filename);
-		free(e);
+		git__free(e->filename);
+		git__free(e);
 	}
 
 	git_vector_free(&tree->entries);
-	free(tree);
+	git__free(tree);
 }
 
 const git_oid *git_tree_id(git_tree *c)
@@ -376,7 +378,7 @@ static int write_tree(git_oid *oid, git_index *index, const char *dirname, unsig
 				last_comp = subdir;
 			}
 			error = append_entry(bld, last_comp, &sub_oid, S_IFDIR);
-			free(subdir);
+			git__free(subdir);
 			if (error < GIT_SUCCESS) {
 				error = git__rethrow(error, "Failed to insert dir");
 				goto cleanup;
@@ -439,7 +441,7 @@ int git_treebuilder_create(git_treebuilder **builder_p, const git_tree *source)
 		source_entries = source->entries.length;
 
 	if (git_vector_init(&bld->entries, source_entries, entry_sort_cmp) < GIT_SUCCESS) {
-		free(bld);
+		git__free(bld);
 		return GIT_ENOMEM;
 	}
 
@@ -594,8 +596,8 @@ void git_treebuilder_clear(git_treebuilder *bld)
 
 	for (i = 0; i < bld->entries.length; ++i) {
 		git_tree_entry *e = bld->entries.contents[i];
-		free(e->filename);
-		free(e);
+		git__free(e->filename);
+		git__free(e);
 	}
 
 	git_vector_clear(&bld->entries);
@@ -605,10 +607,14 @@ void git_treebuilder_free(git_treebuilder *bld)
 {
 	git_treebuilder_clear(bld);
 	git_vector_free(&bld->entries);
-	free(bld);
+	git__free(bld);
 }
 
-static int tree_frompath(git_tree **parent_out, git_tree *root, const char *treeentry_path, int offset)
+static int tree_frompath(
+	git_tree **parent_out,
+	git_tree *root,
+	const char *treeentry_path,
+	int offset)
 {
 	char *slash_pos = NULL;
 	const git_tree_entry* entry;
@@ -616,15 +622,21 @@ static int tree_frompath(git_tree **parent_out, git_tree *root, const char *tree
 	git_tree *subtree;
 
 	if (!*(treeentry_path + offset))
-		return git__rethrow(GIT_EINVALIDPATH, "Invalid relative path to a tree entry '%s'.", treeentry_path);
+		return git__rethrow(GIT_EINVALIDPATH,
+			"Invalid relative path to a tree entry '%s'.", treeentry_path);
 
 	slash_pos = (char *)strchr(treeentry_path + offset, '/');
 
 	if (slash_pos == NULL)
-		return git_tree_lookup(parent_out, root->object.repo, git_object_id((const git_object *)root));
+		return git_tree_lookup(
+			parent_out,
+			root->object.repo,
+			git_object_id((const git_object *)root)
+		);
 
 	if (slash_pos == treeentry_path + offset)
-		return git__rethrow(GIT_EINVALIDPATH, "Invalid relative path to a tree entry '%s'.", treeentry_path);
+		return git__rethrow(GIT_EINVALIDPATH,
+			"Invalid relative path to a tree entry '%s'.", treeentry_path);
 
 	*slash_pos = '\0';
 
@@ -634,23 +646,95 @@ static int tree_frompath(git_tree **parent_out, git_tree *root, const char *tree
 		*slash_pos = '/';
 
 	if (entry == NULL)
-		return git__rethrow(GIT_ENOTFOUND, "No tree entry can be found from the given tree and relative path '%s'.", treeentry_path);
+		return git__rethrow(GIT_ENOTFOUND,
+			"No tree entry can be found from "
+			"the given tree and relative path '%s'.", treeentry_path);
 
-	if ((error = git_tree_lookup(&subtree, root->object.repo, &entry->oid)) < GIT_SUCCESS)
+
+	error = git_tree_lookup(&subtree, root->object.repo, &entry->oid);
+	if (error < GIT_SUCCESS)
 		return error;
 
-	error = tree_frompath(parent_out, subtree, treeentry_path, slash_pos - treeentry_path + 1);
+	error = tree_frompath(
+		parent_out,
+		subtree,
+		treeentry_path,
+		slash_pos - treeentry_path + 1
+	);
 
 	git_tree_close(subtree);
 	return error;
 }
 
-int git_tree_frompath(git_tree **parent_out, git_tree *root, const char *treeentry_path)
+int git_tree_get_subtree(
+	git_tree **subtree,
+	git_tree *root,
+	const char *subtree_path)
 {
 	char buffer[GIT_PATH_MAX];
 
-	assert(root && treeentry_path);
+	assert(subtree && root && subtree_path);
 
-	strcpy(buffer, treeentry_path);
-	return tree_frompath(parent_out, root, buffer, 0);
+	strncpy(buffer, subtree_path, GIT_PATH_MAX);
+	return tree_frompath(subtree, root, buffer, 0);
+}
+
+static int tree_walk_post(
+	git_tree *tree,
+	git_treewalk_cb callback,
+	char *root,
+	size_t root_len,
+	void *payload)
+{
+	int error;
+	unsigned int i;
+
+	for (i = 0; i < tree->entries.length; ++i) {
+		git_tree_entry *entry = tree->entries.contents[i];
+
+		root[root_len] = '\0';
+
+		if (callback(root, entry, payload) < 0)
+			continue;
+
+		if (ENTRY_IS_TREE(entry)) {
+			git_tree *subtree;
+
+			if ((error = git_tree_lookup(
+				&subtree, tree->object.repo, &entry->oid)) < 0)
+				return error;
+
+			strcpy(root + root_len, entry->filename);
+			root[root_len + entry->filename_len] = '/';
+
+			tree_walk_post(subtree,
+				callback, root,
+				root_len + entry->filename_len + 1,
+				payload
+			);
+
+			git_tree_close(subtree);
+		}
+	}
+
+	return GIT_SUCCESS;
+}
+
+int git_tree_walk(git_tree *tree, git_treewalk_cb callback, int mode, void *payload)
+{
+	char root_path[GIT_PATH_MAX];
+
+	root_path[0] = '\0';
+	switch (mode) {
+		case GIT_TREEWALK_POST:
+			return tree_walk_post(tree, callback, root_path, 0, payload);
+
+		case GIT_TREEWALK_PRE:
+			return git__throw(GIT_ENOTIMPLEMENTED,
+				"Preorder tree walking is still not implemented");
+
+		default:
+			return git__throw(GIT_EINVALIDARGS,
+				"Invalid walking mode for tree walk");
+	}
 }

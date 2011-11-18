@@ -9,7 +9,7 @@
 
 #include "common.h"
 #include "fnmatch.h"
-#include "utf8-conv.h"
+#include "utf-conv.h"
 
 GIT_INLINE(int) p_link(const char *GIT_UNUSED(old), const char *GIT_UNUSED(new))
 {
@@ -19,14 +19,14 @@ GIT_INLINE(int) p_link(const char *GIT_UNUSED(old), const char *GIT_UNUSED(new))
 	return -1;
 }
 
-GIT_INLINE(int) p_mkdir(const char *path, int GIT_UNUSED(mode))
+GIT_INLINE(int) p_mkdir(const char *path, mode_t GIT_UNUSED(mode))
 {
-	wchar_t* buf = conv_utf8_to_utf16(path);
+	wchar_t* buf = gitwin_to_utf16(path);
 	int ret = _wmkdir(buf);
 
 	GIT_UNUSED_ARG(mode)
 
-	free(buf);
+	git__free(buf);
 	return ret;
 }
 
@@ -41,12 +41,13 @@ extern int p_mkstemp(char *tmp_path);
 extern int p_setenv(const char* name, const char* value, int overwrite);
 extern int p_stat(const char* path, struct stat* buf);
 extern int p_chdir(const char* path);
-extern int p_chmod(const char* path, int mode);
+extern int p_chmod(const char* path, mode_t mode);
 extern int p_rmdir(const char* path);
-extern int p_access(const char* path, int mode);
+extern int p_access(const char* path, mode_t mode);
 extern int p_fsync(int fd);
 extern int p_open(const char *path, int flags);
-extern int p_creat(const char *path, int mode);
+extern int p_creat(const char *path, mode_t mode);
 extern int p_getcwd(char *buffer_out, size_t size);
+extern int p_rename(const char *from, const char *to);
 
 #endif

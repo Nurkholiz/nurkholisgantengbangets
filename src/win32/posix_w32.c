@@ -6,7 +6,7 @@
  */
 #include "posix.h"
 #include "path.h"
-#include "utf8-conv.h"
+#include "utf-conv.h"
 #include <errno.h>
 #include <io.h>
 #include <fcntl.h>
@@ -17,10 +17,10 @@ int p_unlink(const char *path)
 	int ret = 0;
 	wchar_t* buf;
 
-	buf = conv_utf8_to_utf16(path);
+	buf = gitwin_to_utf16(path);
 	_wchmod(buf, 0666);
 	ret = _wunlink(buf);
-	free(buf);
+	git__free(buf);
 
 	return ret;
 }
@@ -59,7 +59,7 @@ GIT_INLINE(time_t) filetime_to_time_t(const FILETIME *ft)
 static int do_lstat(const char *file_name, struct stat *buf)
 {
 	WIN32_FILE_ATTRIBUTE_DATA fdata;
-	wchar_t* fbuf = conv_utf8_to_utf16(file_name);
+	wchar_t* fbuf = gitwin_to_utf16(file_name);
 
 	if (GetFileAttributesExW(fbuf, GetFileExInfoStandard, &fdata)) {
 		int fMode = S_IREAD;
@@ -86,11 +86,11 @@ static int do_lstat(const char *file_name, struct stat *buf)
 		buf->st_mtime = filetime_to_time_t(&(fdata.ftLastWriteTime));
 		buf->st_ctime = filetime_to_time_t(&(fdata.ftCreationTime));
 
-		free(fbuf);
+		git__free(fbuf);
 		return GIT_SUCCESS;
 	}
 
-	free(fbuf);
+	git__free(fbuf);
 
 	switch (GetLastError()) {
 		case ERROR_ACCESS_DENIED:
@@ -161,7 +161,7 @@ int p_readlink(const char *link, char *target, size_t target_len)
 				"'GetFinalPathNameByHandleW' is not available in this platform");
 	}
 
-	link_w = conv_utf8_to_utf16(link);
+	link_w = gitwin_to_utf16(link);
 
 	hFile = CreateFileW(link_w,			// file to open
 			GENERIC_READ,			// open for reading
@@ -171,7 +171,7 @@ int p_readlink(const char *link, char *target, size_t target_len)
 			FILE_FLAG_BACKUP_SEMANTICS, // normal file
 			NULL);					// no attr. template
 
-	free(link_w);
+	git__free(link_w);
 
 	if (hFile == INVALID_HANDLE_VALUE)
 		return GIT_EOSERR;
@@ -184,17 +184,17 @@ int p_readlink(const char *link, char *target, size_t target_len)
 
 	dwRet = pGetFinalPath(hFile, target_w, target_len, 0x0);
 	if (dwRet >= target_len) {
-		free(target_w);
+		git__free(target_w);
 		CloseHandle(hFile);
 		return GIT_ENOMEM;
 	}
 
 	if (!WideCharToMultiByte(CP_UTF8, 0, target_w, -1, target, target_len * sizeof(char), NULL, NULL)) {
-		free(target_w);
+		git__free(target_w);
 		return GIT_EOSERR;
 	}
 
-	free(target_w);
+	git__free(target_w);
 	CloseHandle(hFile);
 
 	if (dwRet > 4) {
@@ -223,20 +223,20 @@ int p_readlink(const char *link, char *target, size_t target_len)
 int p_open(const char *path, int flags)
 {
 	int fd;
-	wchar_t* buf = conv_utf8_to_utf16(path);
+	wchar_t* buf = gitwin_to_utf16(path);
 	fd = _wopen(buf, flags | _O_BINARY);
 
-	free(buf);
+	git__free(buf);
 	return fd;
 }
 
-int p_creat(const char *path, int mode)
+int p_creat(const char *path, mode_t mode)
 {
 	int fd;
-	wchar_t* buf = conv_utf8_to_utf16(path);
+	wchar_t* buf = gitwin_to_utf16(path);
 	fd = _wopen(buf, _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY, mode);
 
-	free(buf);
+	git__free(buf);
 	return fd;
 }
 
@@ -246,11 +246,11 @@ int p_getcwd(char *buffer_out, size_t size)
 	_wgetcwd(buf, (int)size);
 
 	if (!WideCharToMultiByte(CP_UTF8, 0, buf, -1, buffer_out, size, NULL, NULL)) {
-		free(buf);
+		git__free(buf);
 		return GIT_EOSERR;
 	}
 
-	free(buf);
+	git__free(buf);
 	return GIT_SUCCESS;
 }
 
@@ -261,40 +261,40 @@ int p_stat(const char* path, struct stat* buf)
 
 int p_chdir(const char* path)
 {
-	wchar_t* buf = conv_utf8_to_utf16(path);
+	wchar_t* buf = gitwin_to_utf16(path);
 	int ret = _wchdir(buf);
 
-	free(buf);
+	git__free(buf);
 	return ret;
 }
 
-int p_chmod(const char* path, int mode)
+int p_chmod(const char* path, mode_t mode)
 {
-	wchar_t* buf = conv_utf8_to_utf16(path);
+	wchar_t* buf = gitwin_to_utf16(path);
 	int ret = _wchmod(buf, mode);
 
-	free(buf);
+	git__free(buf);
 	return ret;
 }
 
 int p_rmdir(const char* path)
 {
-	wchar_t* buf = conv_utf8_to_utf16(path);
+	wchar_t* buf = gitwin_to_utf16(path);
 	int ret = _wrmdir(buf);
 
-	free(buf);
+	git__free(buf);
 	return ret;
 }
 
 int p_hide_directory__w32(const char *path)
 {
 	int error;
-	wchar_t* buf = conv_utf8_to_utf16(path);
+	wchar_t* buf = gitwin_to_utf16(path);
 
 	error = SetFileAttributesW(buf, FILE_ATTRIBUTE_HIDDEN) != 0 ?
 		GIT_SUCCESS : GIT_ERROR; /* MSDN states a "non zero" value indicates a success */
 
-	free(buf);
+	git__free(buf);
 
 	if (error < GIT_SUCCESS)
 		error = git__throw(GIT_EOSERR, "Failed to hide directory '%s'", path);
@@ -305,7 +305,7 @@ int p_hide_directory__w32(const char *path)
 char *p_realpath(const char *orig_path, char *buffer)
 {
 	int ret, alloc = 0;
-	wchar_t* orig_path_w = conv_utf8_to_utf16(orig_path);
+	wchar_t* orig_path_w = gitwin_to_utf16(orig_path);
 	wchar_t* buffer_w = (wchar_t*)git__malloc(GIT_PATH_MAX * sizeof(wchar_t));
 
 	if (buffer == NULL) {
@@ -314,21 +314,21 @@ char *p_realpath(const char *orig_path, char *buffer)
 	}
 
 	ret = GetFullPathNameW(orig_path_w, GIT_PATH_MAX, buffer_w, NULL);
-	free(orig_path_w);
+	git__free(orig_path_w);
 
 	if (!ret || ret > GIT_PATH_MAX) {
-		free(buffer_w);
-		if (alloc) free(buffer);
+		git__free(buffer_w);
+		if (alloc) git__free(buffer);
 
 		return NULL;
 	}
 
 	if (!WideCharToMultiByte(CP_UTF8, 0, buffer_w, -1, buffer, GIT_PATH_MAX, NULL, NULL)) {
-		free(buffer_w);
-		if (alloc) free(buffer);
+		git__free(buffer_w);
+		if (alloc) git__free(buffer);
 	}
 	
-	free(buffer_w);
+	git__free(buffer_w);
 	git_path_mkposix(buffer);
 	return buffer;
 }
@@ -355,7 +355,7 @@ int p_snprintf(char *buffer, size_t count, const char *format, ...)
 	return r;
 }
 
-extern int p_creat(const char *path, int mode);
+extern int p_creat(const char *path, mode_t mode);
 
 int p_mkstemp(char *tmp_path)
 {
@@ -378,13 +378,27 @@ int p_setenv(const char* name, const char* value, int overwrite)
 	return (SetEnvironmentVariableA(name, value) == 0 ? GIT_EOSERR : GIT_SUCCESS);
 }
 
-int p_access(const char* path, int mode)
+int p_access(const char* path, mode_t mode)
 {
-	wchar_t *buf = conv_utf8_to_utf16(path);
+	wchar_t *buf = gitwin_to_utf16(path);
 	int ret;
 
 	ret = _waccess(buf, mode);
-	free(buf);
+	git__free(buf);
+
+	return ret;
+}
+
+extern int p_rename(const char *from, const char *to)
+{
+	wchar_t *wfrom = gitwin_to_utf16(from);
+	wchar_t *wto = gitwin_to_utf16(to);
+	int ret;
+
+	ret = MoveFileExW(wfrom, wto, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED) ? GIT_SUCCESS : GIT_EOSERR;
+
+	git__free(wfrom);
+	git__free(wto);
 
 	return ret;
 }

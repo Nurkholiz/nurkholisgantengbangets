@@ -6,7 +6,8 @@
  */
 #define GIT__WIN32_NO_WRAP_DIR
 #include "dir.h"
-#include "utf8-conv.h"
+#include "utf-conv.h"
+#include "git2/windows.h"
 
 static int init_filter(char *filter, size_t n, const char *dir)
 {
@@ -38,18 +39,18 @@ git__DIR *git__opendir(const char *dir)
 
 	new->dir = git__malloc(strlen(dir)+1);
 	if (!new->dir) {
-		free(new);
+		git__free(new);
 		return NULL;
 	}
 	strcpy(new->dir, dir);
 
-	filter_w = conv_utf8_to_utf16(filter);
+	filter_w = gitwin_to_utf16(filter);
 	new->h = FindFirstFileW(filter_w, &new->f);
-	free(filter_w);
+	git__free(filter_w);
 
 	if (new->h == INVALID_HANDLE_VALUE) {
-		free(new->dir);
-		free(new);
+		git__free(new->dir);
+		git__free(new);
 		return NULL;
 	}
 	new->first = 1;
@@ -73,7 +74,7 @@ struct git__dirent *git__readdir(git__DIR *d)
 		return NULL;
 
 	d->entry.d_ino = 0;
-	WideCharToMultiByte(CP_UTF8, 0, d->f.cFileName, -1, d->entry.d_name, GIT_PATH_MAX, NULL, NULL);
+	WideCharToMultiByte(gitwin_get_codepage(), 0, d->f.cFileName, -1, d->entry.d_name, GIT_PATH_MAX, NULL, NULL);
 
 	return &d->entry;
 }
@@ -90,9 +91,9 @@ void git__rewinddir(git__DIR *d)
 		d->first = 0;
 
 		if (init_filter(filter, sizeof(filter), d->dir)) {
-			filter_w = conv_utf8_to_utf16(filter);
+			filter_w = gitwin_to_utf16(filter);
 			d->h = FindFirstFileW(filter_w, &d->f);
-			free(filter_w);
+			git__free(filter_w);
 
 			if (d->h != INVALID_HANDLE_VALUE)
 				d->first = 1;
@@ -106,8 +107,8 @@ int git__closedir(git__DIR *d)
 		if (d->h != INVALID_HANDLE_VALUE)
 			FindClose(d->h);
 		if (d->dir)
-			free(d->dir);
-		free(d);
+			git__free(d->dir);
+		git__free(d);
 	}
 	return 0;
 }

@@ -168,12 +168,7 @@ static git_repository *repository_alloc(void)
 
 	error = git_cache_init(&repo->objects, GIT_DEFAULT_CACHE_SIZE, &git_object__free);
 	if (error < GIT_SUCCESS) {
-		free(repo);
-		return NULL;
-	}
-
-	if (git_repository__refcache_init(&repo->references) < GIT_SUCCESS) {
-		free(repo);
+		git__free(repo);
 		return NULL;
 	}
 
@@ -467,13 +462,13 @@ static int read_gitfile(char *path_out, const char *file_path, const char *base_
 
 static void git_repository__free_dirs(git_repository *repo)
 {
-	free(repo->path_workdir);
+	git__free(repo->path_workdir);
 	repo->path_workdir = NULL;
-	free(repo->path_index);
+	git__free(repo->path_index);
 	repo->path_index = NULL;
-	free(repo->path_repository);
+	git__free(repo->path_repository);
 	repo->path_repository = NULL;
-	free(repo->path_odb);
+	git__free(repo->path_odb);
 	repo->path_odb = NULL;
 }
 
@@ -489,7 +484,7 @@ void git_repository_free(git_repository *repo)
 	if (repo->db != NULL)
 		git_odb_close(repo->db);
 
-	free(repo);
+	git__free(repo);
 }
 
 int git_repository_discover(char *repository_path, size_t size, const char *start_path, int across_fs, const char *ceiling_dirs)
@@ -603,18 +598,23 @@ static int repo_init_reinit(const char *repository_path, int is_bare)
 
 static int repo_init_createhead(git_repository *repo)
 {
+	int error;
 	git_reference *head_reference;
-	return git_reference_create_symbolic(&head_reference, repo, GIT_HEAD_FILE, GIT_REFS_HEADS_MASTER_FILE, 0);
+
+	error = git_reference_create_symbolic(&head_reference, repo, GIT_HEAD_FILE, GIT_REFS_HEADS_MASTER_FILE, 0);
+
+	git_reference_free(head_reference);
+
+	return error;
 }
 
 static int repo_init_structure(const char *git_dir, int is_bare)
 {
-	const int mode = 0755; /* or 0777 ? */
 	int error;
 
 	char temp_path[GIT_PATH_MAX];
 
-	if (git_futils_mkdir_r(git_dir, mode))
+	if (git_futils_mkdir_r(git_dir, is_bare ? GIT_BARE_DIR_MODE : GIT_DIR_MODE))
 		return git__throw(GIT_ERROR, "Failed to initialize repository structure. Could not mkdir");
 
 	/* Hides the ".git" directory */
@@ -628,25 +628,25 @@ static int repo_init_structure(const char *git_dir, int is_bare)
 
 	/* Creates the '/objects/info/' directory */
 	git_path_join(temp_path, git_dir, GIT_OBJECTS_INFO_DIR);
-	error = git_futils_mkdir_r(temp_path, mode);
+	error = git_futils_mkdir_r(temp_path, GIT_OBJECT_DIR_MODE);
 	if (error < GIT_SUCCESS)
 		return git__rethrow(error, "Failed to initialize repository structure");
 
 	/* Creates the '/objects/pack/' directory */
 	git_path_join(temp_path, git_dir, GIT_OBJECTS_PACK_DIR);
-	error = p_mkdir(temp_path, mode);
+	error = p_mkdir(temp_path, GIT_OBJECT_DIR_MODE);
 	if (error < GIT_SUCCESS)
 		return git__throw(error, "Unable to create `%s` folder", temp_path);
 
 	/* Creates the '/refs/heads/' directory */
 	git_path_join(temp_path, git_dir, GIT_REFS_HEADS_DIR);
-	error = git_futils_mkdir_r(temp_path, mode);
+	error = git_futils_mkdir_r(temp_path, GIT_REFS_DIR_MODE);
 	if (error < GIT_SUCCESS)
 		return git__rethrow(error, "Failed to initialize repository structure");
 
 	/* Creates the '/refs/tags/' directory */
 	git_path_join(temp_path, git_dir, GIT_REFS_TAGS_DIR);
-	error = p_mkdir(temp_path, mode);
+	error = p_mkdir(temp_path, GIT_REFS_DIR_MODE);
 	if (error < GIT_SUCCESS)
 		return git__throw(error, "Unable to create `%s` folder", temp_path);
 
@@ -716,10 +716,15 @@ int git_repository_head_detached(git_repository *repo)
 	if (error < GIT_SUCCESS)
 		return error;
 
-	if (git_reference_type(ref) == GIT_REF_SYMBOLIC)
+	if (git_reference_type(ref) == GIT_REF_SYMBOLIC) {
+		git_reference_free(ref);
 		return 0;
+	}
 
 	error = git_odb_read_header(&_size, &type, repo->db, git_reference_oid(ref));
+
+	git_reference_free(ref);
+
 	if (error < GIT_SUCCESS)
 		return error;
 
@@ -731,7 +736,7 @@ int git_repository_head_detached(git_repository *repo)
 
 int git_repository_head(git_reference **head_out, git_repository *repo)
 {
-	git_reference *ref;
+	git_reference *ref, *resolved_ref;
 	int error;
 
 	*head_out = NULL;
@@ -740,11 +745,15 @@ int git_repository_head(git_reference **head_out, git_repository *repo)
 	if (error < GIT_SUCCESS)
 		return git__rethrow(GIT_ENOTAREPO, "Failed to locate the HEAD");
 
-	error = git_reference_resolve(&ref, ref);
-	if (error < GIT_SUCCESS)
+	error = git_reference_resolve(&resolved_ref, ref);
+	if (error < GIT_SUCCESS) {
+		git_reference_free(ref);
 		return git__rethrow(error, "Failed to resolve the HEAD");
+	}
 
-	*head_out = ref;
+	git_reference_free(ref);
+
+	*head_out = resolved_ref;
 	return GIT_SUCCESS;
 }
 
@@ -755,25 +764,36 @@ int git_repository_head_orphan(git_repository *repo)
 
 	error = git_repository_head(&ref, repo);
 
+	if (error == GIT_SUCCESS)
+		git_reference_free(ref);
+
 	return error == GIT_ENOTFOUND ? 1 : error;
 }
 
 int git_repository_is_empty(git_repository *repo)
 {
-	git_reference *head, *branch;
+	git_reference *head = NULL, *branch = NULL;
 	int error;
 
 	error = git_reference_lookup(&head, repo, "HEAD");
 	if (error < GIT_SUCCESS)
 		return git__throw(error, "Corrupted repository. HEAD does not exist");
 
-	if (git_reference_type(head) != GIT_REF_SYMBOLIC)
+	if (git_reference_type(head) != GIT_REF_SYMBOLIC) {
+		git_reference_free(head);
 		return 0;
+	}
 
-	if (strcmp(git_reference_target(head), "refs/heads/master") != 0)
+	if (strcmp(git_reference_target(head), "refs/heads/master") != 0) {
+		git_reference_free(head);
 		return 0;
+	}
 
 	error = git_reference_resolve(&branch, head);
+
+	git_reference_free(head);
+	git_reference_free(branch);
+
 	return error == GIT_ENOTFOUND ? 1 : error;
 }
 

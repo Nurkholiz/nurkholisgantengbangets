@@ -54,7 +54,7 @@ static int add_ref(const char *name, git_repository *repo, git_vector *vec)
 {
 	const char peeled[] = "^{}";
 	git_remote_head *head;
-	git_reference *ref;
+	git_reference *ref, *resolved_ref;
 	git_object *obj = NULL;
 	int error = GIT_SUCCESS, peel_len, ret;
 
@@ -72,7 +72,7 @@ static int add_ref(const char *name, git_repository *repo, git_vector *vec)
 	if (error < GIT_SUCCESS)
 		goto out;
 
-	error = git_reference_resolve(&ref, ref);
+	error = git_reference_resolve(&resolved_ref, ref);
 	if (error < GIT_SUCCESS)
 		goto out;
 
@@ -111,10 +111,13 @@ static int add_ref(const char *name, git_repository *repo, git_vector *vec)
 		goto out;
 
  out:
+	git_reference_free(ref);
+	git_reference_free(resolved_ref);
+
 	git_object_close(obj);
 	if (error < GIT_SUCCESS) {
-		free(head->name);
-		free(head);
+		git__free(head->name);
+		git__free(head);
 	}
 	return error;
 }
@@ -190,16 +193,16 @@ static void local_free(git_transport *transport)
 
 	if (t->refs != NULL) {
 		git_vector_foreach (vec, i, h) {
-			free(h->name);
-			free(h);
+			git__free(h->name);
+			git__free(h);
 		}
 		git_vector_free(vec);
-		free(vec);
+		git__free(vec);
 	}
 
 	git_repository_free(t->repo);
-	free(t->parent.url);
-	free(t);
+	git__free(t->parent.url);
+	git__free(t);
 }
 
 /**************

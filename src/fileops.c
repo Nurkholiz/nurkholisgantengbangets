@@ -8,32 +8,8 @@
 #include "fileops.h"
 #include <ctype.h>
 
-int git_futils_mv_atomic(const char *from, const char *to)
+int git_futils_mkpath2file(const char *file_path, const mode_t mode)
 {
-#ifdef GIT_WIN32
-	/*
-	 * Win32 POSIX compilance my ass. If the destination
-	 * file exists, the `rename` call fails. This is as
-	 * close as it gets with the Win32 API.
-	 */
-	return MoveFileEx(from, to, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED) ? GIT_SUCCESS : GIT_EOSERR;
-#else
-	/* Don't even try this on Win32 */
-	if (!link(from, to)) {
-		p_unlink(from);
-		return GIT_SUCCESS;
-	}
-
-	if (!rename(from, to))
-		return GIT_SUCCESS;
-
-	return GIT_ERROR;
-#endif
-}
-
-int git_futils_mkpath2file(const char *file_path)
-{
-	const int mode = 0755; /* or 0777 ? */
 	int error = GIT_SUCCESS;
 	char target_folder_path[GIT_PATH_MAX];
 
@@ -67,23 +43,23 @@ int git_futils_mktmp(char *path_out, const char *filename)
 	return fd;
 }
 
-int git_futils_creat_withpath(const char *path, int mode)
+int git_futils_creat_withpath(const char *path, const mode_t dirmode, const mode_t mode)
 {
-	if (git_futils_mkpath2file(path) < GIT_SUCCESS)
+	if (git_futils_mkpath2file(path, dirmode) < GIT_SUCCESS)
 		return git__throw(GIT_EOSERR, "Failed to create file %s", path);
 
 	return p_creat(path, mode);
 }
 
-int git_futils_creat_locked(const char *path, int mode)
+int git_futils_creat_locked(const char *path, const mode_t mode)
 {
 	int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_EXCL, mode);
 	return fd >= 0 ? fd : git__throw(GIT_EOSERR, "Failed to create locked file. Could not open %s", path);
 }
 
-int git_futils_creat_locked_withpath(const char *path, int mode)
+int git_futils_creat_locked_withpath(const char *path, const mode_t dirmode, const mode_t mode)
 {
-	if (git_futils_mkpath2file(path) < GIT_SUCCESS)
+	if (git_futils_mkpath2file(path, dirmode) < GIT_SUCCESS)
 		return git__throw(GIT_EOSERR, "Failed to create locked file %s", path);
 
 	return git_futils_creat_locked(path, mode);
@@ -181,7 +157,7 @@ int git_futils_readbuffer_updated(git_fbuffer *obj, const char *path, time_t *mt
 
 	if (p_read(fd, buff, len) < 0) {
 		p_close(fd);
-		free(buff);
+		git__free(buff);
 		return git__throw(GIT_ERROR, "Failed to read file `%s`", path);
 	}
 	buff[len] = '\0';
@@ -207,17 +183,17 @@ int git_futils_readbuffer(git_fbuffer *obj, const char *path)
 void git_futils_freebuffer(git_fbuffer *obj)
 {
 	assert(obj);
-	free(obj->data);
+	git__free(obj->data);
 	obj->data = NULL;
 }
 
 
-int git_futils_mv_withpath(const char *from, const char *to)
+int git_futils_mv_withpath(const char *from, const char *to, const mode_t dirmode)
 {
-	if (git_futils_mkpath2file(to) < GIT_SUCCESS)
+	if (git_futils_mkpath2file(to, dirmode) < GIT_SUCCESS)
 		return GIT_EOSERR;	/* The callee already takes care of setting the correct error message. */
 
-	return git_futils_mv_atomic(from, to);	/* The callee already takes care of setting the correct error message. */
+	return p_rename(from, to); /* The callee already takes care of setting the correct error message. */
 }
 
 int git_futils_mmap_ro(git_map *out, git_file fd, git_off_t begin, size_t len)
@@ -289,7 +265,7 @@ int git_futils_direach(
 	return GIT_SUCCESS;
 }
 
-int git_futils_mkdir_r(const char *path, int mode)
+int git_futils_mkdir_r(const char *path, const mode_t mode)
 {
 	int error, root_path_offset;
 	char *pp, *sp;
@@ -326,7 +302,7 @@ int git_futils_mkdir_r(const char *path, int mode)
 			error = GIT_SUCCESS;
 	}
 
-	free(path_copy);
+	git__free(path_copy);
 
 	if (error < GIT_SUCCESS)
 		return git__throw(error, "Failed to recursively create `%s` tree structure", path);

@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "common.h"
+#include "global.h"
 #include <git2.h>
 
 #define DECLARE_SUITE(SNAME) extern git_testsuite *libgit2_suite_##SNAME(void)

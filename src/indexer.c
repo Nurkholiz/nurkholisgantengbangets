@@ -272,7 +272,7 @@ int git_indexer_write(git_indexer *idx)
 	/* Figure out what the final name should be */
 	index_path(filename, idx);
 	/* Commit file */
-	error = git_filebuf_commit_at(&idx->file, filename);
+	error = git_filebuf_commit_at(&idx->file, filename, GIT_PACK_FILE_MODE);
 
 cleanup:
 	git_mwindow_free_all(&idx->pack->mwf);
@@ -367,7 +367,7 @@ int git_indexer_run(git_indexer *idx, git_indexer_stats *stats)
 			idx->fanout[i]++;
 		}
 
-		free(obj.data);
+		git__free(obj.data);
 
 		stats->processed = ++processed;
 	}
@@ -390,12 +390,12 @@ void git_indexer_free(git_indexer *idx)
 
 	p_close(idx->pack->mwf.fd);
 	git_vector_foreach(&idx->objects, i, e)
-		free(e);
+		git__free(e);
 	git_vector_free(&idx->objects);
 	git_vector_foreach(&idx->pack->cache, i, pe)
-		free(pe);
+		git__free(pe);
 	git_vector_free(&idx->pack->cache);
-	free(idx->pack);
-	free(idx);
+	git__free(idx->pack);
+	git__free(idx);
 }
 

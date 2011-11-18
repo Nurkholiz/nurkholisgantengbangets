@@ -32,7 +32,7 @@ static void clear_parents(git_commit *commit)
 
 	for (i = 0; i < commit->parent_oids.length; ++i) {
 		git_oid *parent = git_vector_get(&commit->parent_oids, i);
-		free(parent);
+		git__free(parent);
 	}
 
 	git_vector_clear(&commit->parent_oids);
@@ -46,9 +46,9 @@ void git_commit__free(git_commit *commit)
 	git_signature_free(commit->author);
 	git_signature_free(commit->committer);
 
-	free(commit->message);
-	free(commit->message_encoding);
-	free(commit);
+	git__free(commit->message);
+	git__free(commit->message_encoding);
+	git__free(commit);
 }
 
 const git_oid *git_commit_id(git_commit *c)
@@ -84,7 +84,7 @@ int git_commit_create_v(
 		message_encoding, message,
 		tree, parent_count, parents);
 
-	free((void *)parents);
+	git__free((void *)parents);
 
 	return error;
 }
@@ -137,15 +137,18 @@ int git_commit_create(
 
 	if (error == GIT_SUCCESS && update_ref != NULL) {
 		git_reference *head;
+		git_reference *target;
 
 		error = git_reference_lookup(&head, repo, update_ref);
 		if (error < GIT_SUCCESS)
 			return git__rethrow(error, "Failed to create commit");
 
-		error = git_reference_resolve(&head, head);
+		error = git_reference_resolve(&target, head);
 		if (error < GIT_SUCCESS) {
-			if (error != GIT_ENOTFOUND)
+			if (error != GIT_ENOTFOUND) {
+				git_reference_free(head);
 				return git__rethrow(error, "Failed to create commit");
+			}
 		/*
 		 * The target of the reference was not found. This can happen
 		 * just after a repository has been initialized (the master
@@ -153,10 +156,19 @@ int git_commit_create(
 		 * point to) or after an orphan checkout, so if the target
 		 * branch doesn't exist yet, create it and return.
 		 */
-			return git_reference_create_oid(&head, repo, git_reference_target(head), oid, 1);
+			error = git_reference_create_oid(&target, repo, git_reference_target(head), oid, 1);
+
+			git_reference_free(head);
+			if (error == GIT_SUCCESS)
+				git_reference_free(target);
+
+			return error;
 		}
 
-		error = git_reference_set_oid(head, oid);
+		error = git_reference_set_oid(target, oid);
+
+		git_reference_free(head);
+		git_reference_free(target);
 	}
 
 	if (error < GIT_SUCCESS)

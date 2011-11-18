@@ -7,13 +7,9 @@
 
 #include "common.h"
 #include "errors.h"
-#include "git2/thread-utils.h" /* for GIT_TLS */
-#include "thread-utils.h" /* for GIT_TLS */
 #include "posix.h"
-
+#include "global.h"
 #include <stdarg.h>
-
-GIT_TLS git_error *git_errno;
 
 static struct {
 	int num;
@@ -115,11 +111,11 @@ git_error * git_error_createf(const char *file, unsigned int line, int code,
 	va_end(ap);
 
 	err->code  = code;
-	err->child = git_errno;
+	err->child = GIT_GLOBAL->git_errno;
 	err->file  = file;
 	err->line  = line;
 
-	git_errno = err;
+	GIT_GLOBAL->git_errno = err;
 
 	return err;
 }
@@ -149,13 +145,13 @@ void git_error_free(git_error *err)
 
 void git_clearerror(void)
 {
-	git_error_free(git_errno);
-	git_errno = NULL;
+	git_error_free(GIT_GLOBAL->git_errno);
+	GIT_GLOBAL->git_errno = NULL;
 }
 
 const char *git_lasterror(void)
 {
-	return git_errno == NULL ? NULL : git_errno->msg;
+	return GIT_GLOBAL->git_errno == NULL ? NULL : GIT_GLOBAL->git_errno->msg;
 }
 
 void git_error_print_stack(git_error *error_in)
@@ -163,7 +159,7 @@ void git_error_print_stack(git_error *error_in)
 	git_error *error;
 
 	if (error_in == NULL)
-		error_in = git_errno;
+		error_in = GIT_GLOBAL->git_errno;
 
 	for (error = error_in; error; error = error->child)
 		fprintf(stderr, "%s:%u %s\n", error->file, error->line, error->msg);
