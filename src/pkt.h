@@ -26,6 +26,9 @@ enum git_pkt_type {
 	GIT_PKT_ERR,
 	GIT_PKT_DATA,
 	GIT_PKT_PROGRESS,
+	GIT_PKT_OK,
+	GIT_PKT_NG,
+	GIT_PKT_UNPACK,
 };
 
 /* Used for multi-ack */
@@ -79,6 +82,22 @@ typedef struct {
 	enum git_pkt_type type;
 	char error[GIT_FLEX_ARRAY];
 } git_pkt_err;
+
+typedef struct {
+	enum git_pkt_type type;
+	char *ref;
+} git_pkt_ok;
+
+typedef struct {
+	enum git_pkt_type type;
+	char *ref;
+	char *msg;
+} git_pkt_ng;
+
+typedef struct {
+	enum git_pkt_type type;
+	int unpack_ok;
+} git_pkt_unpack;
 
 int git_pkt_parse_line(git_pkt **head, const char *line, const char **out, size_t len);
 int git_pkt_buffer_flush(git_buf *buf);

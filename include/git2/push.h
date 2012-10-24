@@ -48,6 +48,27 @@ GIT_EXTERN(int) git_push_add_refspec(git_push *push, const char *refspec);
 GIT_EXTERN(int) git_push_finish(git_push *push);
 
 /**
+ * Check if remote side successfully unpacked
+ *
+ * @param push The push object
+ *
+ * @return true if equal, false otherwise
+ */
+GIT_EXTERN(int) git_push_unpack_ok(git_push *push);
+
+/**
+ * Call callback `cb' on each status
+ *
+ * @param push The push object
+ * @param cb The callback to call on each object
+ *
+ * @return 0 on success, GIT_EUSER on non-zero callback, or error code
+ */
+GIT_EXTERN(int) git_push_status_foreach(git_push *push,
+			int (*cb)(const char *ref, const char *msg, void *data),
+			void *data);
+
+/**
  * Free the given push object
  *
  * @param push The push object

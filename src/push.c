@@ -8,6 +8,7 @@
 #include "common.h"
 #include "pack.h"
 #include "pack-objects.h"
+#include "pkt.h"
 #include "remote.h"
 #include "transport.h"
 #include "vector.h"
@@ -31,11 +32,23 @@ typedef struct push_spec {
 	bool force;
 } push_spec;
 
+typedef struct push_status {
+	bool ok;
+
+	char *ref;
+	char *msg;
+} push_status;
+
 struct git_push {
 	git_repository *repo;
 	git_packbuilder *pb;
 	git_remote *remote;
 	git_vector specs;
+	git_transport_caps caps;
+
+	/* report-status */
+	bool unpack_ok;
+	git_vector status;
 };
 
 int git_push_new(git_push **out, git_remote *remote)
@@ -49,8 +62,15 @@ int git_push_new(git_push **out, git_remote *remote)
 
 	p->repo = remote->repo;
 	p->remote = remote;
+	p->caps.report_status = 1;
 
 	if (git_vector_init(&p->specs, 0, NULL) < 0) {
+		git__free(p);
+		return -1;
+	}
+
+	if (git_vector_init(&p->status, 0, NULL) < 0) {
+		git_vector_free(&p->specs);
 		git__free(p);
 		return -1;
 	}
@@ -71,6 +91,18 @@ static void free_refspec(push_spec *spec)
 		git__free(spec->rref);
 
 	git__free(spec);
+}
+
+static void free_status(push_status *status)
+{
+	if (status == NULL)
+		return;
+
+	if (status->msg)
+		git__free(status->msg);
+
+	git__free(status->ref);
+	git__free(status);
 }
 
 static int check_ref(char *ref)
@@ -160,6 +192,12 @@ static int gen_pktline(git_buf *buf, git_push *push)
 	git_vector_foreach(&push->specs, i, spec) {
 		len = 2*GIT_OID_HEXSZ + 7;
 
+		if (i == 0) {
+			len +=1; /* '\0' */
+			if (push->caps.report_status)
+				len += strlen(GIT_CAP_REPORT_STATUS);
+		}
+
 		if (spec->lref) {
 			if (git_reference_name_to_oid(
 					&spec->loid, push->repo, spec->lref) < 0) {
@@ -184,7 +222,7 @@ static int gen_pktline(git_buf *buf, git_push *push)
 						git_buf_printf(buf, "%04x%s ", len, hex);
 
 						git_oid_fmt(hex, &spec->loid);
-						git_buf_printf(buf, "%s %s\n", hex,
+						git_buf_printf(buf, "%s %s", hex,
 							       spec->lref);
 
 						break;
@@ -196,7 +234,7 @@ static int gen_pktline(git_buf *buf, git_push *push)
 					 * Create remote reference
 					 */
 					git_oid_fmt(hex, &spec->loid);
-					git_buf_printf(buf, "%04x%s %s %s\n", len,
+					git_buf_printf(buf, "%04x%s %s %s", len,
 						       GIT_OID_HEX_ZERO, hex, spec->lref);
 				}
 			} else {
@@ -215,7 +253,7 @@ static int gen_pktline(git_buf *buf, git_push *push)
 						git_buf_printf(buf, "%04x%s ", len, hex);
 
 						git_oid_fmt(hex, &spec->loid);
-						git_buf_printf(buf, "%s %s\n", hex,
+						git_buf_printf(buf, "%s %s", hex,
 							       spec->rref);
 
 						break;
@@ -227,7 +265,7 @@ static int gen_pktline(git_buf *buf, git_push *push)
 					 * Create remote reference
 					 */
 					git_oid_fmt(hex, &spec->loid);
-					git_buf_printf(buf, "%04x%s %s %s\n", len,
+					git_buf_printf(buf, "%04x%s %s %s", len,
 						       GIT_OID_HEX_ZERO, hex, spec->rref);
 				}
 			}
@@ -241,13 +279,21 @@ static int gen_pktline(git_buf *buf, git_push *push)
 					len += strlen(spec->rref);
 
 					git_oid_fmt(hex, &head->oid);
-					git_buf_printf(buf, "%04x%s %s %s\n", len,
+					git_buf_printf(buf, "%04x%s %s %s", len,
 						       hex, GIT_OID_HEX_ZERO, head->name);
 
 					break;
 				}
 			}
 		}
+
+		if (i == 0) {
+			git_buf_putc(buf, '\0');
+			if (push->caps.report_status)
+				git_buf_printf(buf, GIT_CAP_REPORT_STATUS);
+		}
+
+		git_buf_putc(buf, '\n');
 	}
 	git_buf_puts(buf, "0000");
 	return git_buf_oom(buf) ? -1 : 0;
@@ -442,6 +488,93 @@ on_error:
 	return -1;
 }
 
+static int parse_report(git_push *push)
+{
+	gitno_buffer *buf = &push->remote->transport->buffer;
+	git_pkt *pkt;
+	const char *line_end;
+	int error, recvd;
+
+	for (;;) {
+		if (buf->offset > 0)
+			error = git_pkt_parse_line(&pkt, buf->data,
+						   &line_end, buf->offset);
+		else
+			error = GIT_EBUFS;
+
+		if (error < 0 && error != GIT_EBUFS)
+			return -1;
+
+		if (error == GIT_EBUFS) {
+			if ((recvd = gitno_recv(buf)) < 0)
+				return -1;
+
+			if (recvd == 0) {
+				giterr_set(GITERR_NET, "Early EOF");
+				return -1;
+			}
+			continue;
+		}
+
+		gitno_consume(buf, line_end);
+
+		if (pkt->type == GIT_PKT_OK) {
+			push_status *status = git__malloc(sizeof(*status));
+			GITERR_CHECK_ALLOC(status);
+			status->ref = git__strdup(((git_pkt_ok *)pkt)->ref);
+			status->msg = NULL;
+			git_pkt_free(pkt);
+			if (git_vector_insert(&push->status, status) < 0) {
+				git__free(status);
+				return -1;
+			}
+			continue;
+		}
+
+		if (pkt->type == GIT_PKT_NG) {
+			push_status *status = git__malloc(sizeof(*status));
+			GITERR_CHECK_ALLOC(status);
+			status->ref = git__strdup(((git_pkt_ng *)pkt)->ref);
+			status->msg = git__strdup(((git_pkt_ng *)pkt)->msg);
+			git_pkt_free(pkt);
+			if (git_vector_insert(&push->status, status) < 0) {
+				git__free(status);
+				return -1;
+			}
+			continue;
+		}
+
+		if (pkt->type == GIT_PKT_UNPACK) {
+			push->unpack_ok = ((git_pkt_unpack *)pkt)->unpack_ok;
+			git_pkt_free(pkt);
+			continue;
+		}
+
+		if (pkt->type == GIT_PKT_FLUSH) {
+			git_pkt_free(pkt);
+			return 0;
+		}
+
+		git_pkt_free(pkt);
+		giterr_set(GITERR_NET, "report-status: protocol error");
+		return -1;
+	}
+}
+
+static int finish_push(git_push *push)
+{
+	int error = -1;
+
+	if (push->caps.report_status && parse_report(push) < 0)
+		goto on_error;
+
+	error = 0;
+
+on_error:
+	git_remote_disconnect(push->remote);
+	return error;
+}
+
 static int cb_filter_refs(git_remote_head *ref, void *data)
 {
 	git_remote *remote = data;
@@ -456,23 +589,42 @@ static int filter_refs(git_remote *remote)
 
 int git_push_finish(git_push *push)
 {
-	if (!git_remote_connected(push->remote)) {
-		if (git_remote_connect(push->remote, GIT_DIR_PUSH) < 0)
+	if (!git_remote_connected(push->remote) &&
+		git_remote_connect(push->remote, GIT_DIR_PUSH) < 0)
 			return -1;
-	}
 
 	if (filter_refs(push->remote) < 0 || do_push(push) < 0) {
 		git_remote_disconnect(push->remote);
 		return -1;
 	}
 
-	git_remote_disconnect(push->remote);
+	return finish_push(push);
+}
+
+int git_push_unpack_ok(git_push *push)
+{
+	return push->unpack_ok;
+}
+
+int git_push_status_foreach(git_push *push,
+		int (*cb)(const char *ref, const char *msg, void *data),
+		void *data)
+{
+	push_status *status;
+	unsigned int i;
+
+	git_vector_foreach(&push->status, i, status) {
+		if (cb(status->ref, status->msg, data) < 0)
+			return GIT_EUSER;
+	}
+
 	return 0;
 }
 
 void git_push_free(git_push *push)
 {
 	push_spec *spec;
+	push_status *status;
 	unsigned int i;
 
 	if (push == NULL)
@@ -482,6 +634,11 @@ void git_push_free(git_push *push)
 		free_refspec(spec);
 	}
 	git_vector_free(&push->specs);
+
+	git_vector_foreach(&push->status, i, status) {
+		free_status(status);
+	}
+	git_vector_free(&push->status);
 
 	git__free(push);
 }
