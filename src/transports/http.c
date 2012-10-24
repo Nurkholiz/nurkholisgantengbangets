@@ -188,8 +188,14 @@ static int send_request(transport_http *t, const char *service, void *data, size
 				return -1;
 		}
 
-		if (!t->user && http_authenticate(transport)) {
+		if (http_authenticate(transport)) {
 			http_auth_data auth_data;
+
+			if (t->user)
+				git__free(t->user);
+
+			if (t->pass)
+				git__free(t->pass);
 
 			do_auth = 1;
 			if (t->auth_cb) {
