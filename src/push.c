@@ -15,6 +15,7 @@
 
 #include "git2/commit.h"
 #include "git2/index.h"
+#include "git2/merge.h"
 #include "git2/pack.h"
 #include "git2/push.h"
 #include "git2/remote.h"
@@ -328,11 +329,25 @@ static int revwalk(git_vector *commits, git_push *push)
 			goto on_error;
 
 		if (!spec->force) {
-			; /* TODO: check if common ancestor */
-		}
+			git_oid base;
 
-		if (!git_oid_iszero(&spec->roid)) {
-			if (git_revwalk_hide(rw, &spec->roid) < 0)
+			if (git_oid_iszero(&spec->roid))
+				continue;
+
+			if (!git_odb_exists(push->repo->_odb, &spec->roid)) {
+				giterr_clear();
+				error = GIT_ENONFASTFORWARD;
+				goto on_error;
+			}
+
+			error = git_merge_base(&base, push->repo,
+					       &spec->loid, &spec->roid);
+			if (error == GIT_ENOTFOUND) {
+				giterr_clear();
+				error = GIT_ENONFASTFORWARD;
+				goto on_error;
+			}
+			if (error < 0)
 				goto on_error;
 		}
 	}
