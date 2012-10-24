@@ -86,6 +86,11 @@ int git_remote_new(git_remote **out, git_repository *repo, const char *name, con
 			goto on_error;
 	}
 
+	/* A remote without a name doesn't download tags */
+	if (!name) {
+		remote->download_tags = GIT_REMOTE_DOWNLOAD_TAGS_NONE;
+	}
+
 	*out = remote;
 	return 0;
 
@@ -198,7 +203,9 @@ cleanup:
 
 int git_remote_save(const git_remote *remote)
 {
+	int error;
 	git_config *config;
+	const char *tagopt = NULL;
 	git_buf buf = GIT_BUF_INIT, value = GIT_BUF_INIT;
 
 	if (git_repository_config__weakptr(&config, remote->repo) < 0)
@@ -257,6 +264,38 @@ int git_remote_save(const git_remote *remote)
 			return -1;
 
 		if (git_config_set_string(config, git_buf_cstr(&buf), git_buf_cstr(&value)) < 0)
+			goto on_error;
+	}
+
+	/*
+	 * What action to take depends on the old and new values. This
+	 * is describes by the table below. tagopt means whether the
+	 * is already a value set in the config
+	 *
+	 *            AUTO     ALL or NONE
+	 *         +-----------------------+
+	 *  tagopt | remove  |     set     |
+	 *         +---------+-------------|
+	 * !tagopt | nothing |     set     |
+	 *         +---------+-------------+
+	 */
+
+	git_buf_clear(&buf);
+	if (git_buf_printf(&buf, "remote.%s.tagopt", remote->name) < 0)
+		goto on_error;
+
+	error = git_config_get_string(&tagopt, config, git_buf_cstr(&buf));
+	if (error < 0 && error != GIT_ENOTFOUND)
+		goto on_error;
+
+	if (remote->download_tags == GIT_REMOTE_DOWNLOAD_TAGS_ALL) {
+		if (git_config_set_string(config, git_buf_cstr(&buf), "--tags") < 0)
+			goto on_error;
+	} else if (remote->download_tags == GIT_REMOTE_DOWNLOAD_TAGS_NONE) {
+		if (git_config_set_string(config, git_buf_cstr(&buf), "--no-tags") < 0)
+			goto on_error;
+	} else if (tagopt) {
+		if (git_config_delete(config, git_buf_cstr(&buf)) < 0)
 			goto on_error;
 	}
 
@@ -603,12 +642,12 @@ struct cb_data {
 	regex_t *preg;
 };
 
-static int remote_list_cb(const char *name, const char *value, void *data_)
+static int remote_list_cb(const git_config_entry *entry, void *data_)
 {
 	struct cb_data *data = (struct cb_data *)data_;
 	size_t nmatch = 2;
 	regmatch_t pmatch[2];
-	GIT_UNUSED(value);
+	const char *name = entry->name;
 
 	if (!regexec(data->preg, name, nmatch, pmatch, 0)) {
 		char *remote_name = git__strndup(&name[pmatch[1].rm_so], pmatch[1].rm_eo - pmatch[1].rm_so);
