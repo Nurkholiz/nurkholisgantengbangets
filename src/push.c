@@ -132,30 +132,29 @@ static int parse_refspec(push_spec **spec, const char *str)
 		str++;
 	}
 
+#define check(ref) \
+	if (!ref || check_ref(ref) < 0) goto on_error
+
 	delim = strchr(str, ':');
 	if (delim == NULL) {
 		s->lref = git__strdup(str);
-		if (!s->lref ||
-		    check_ref(s->lref) < 0)
-			goto on_error;
+		check(s->lref);
 		s->rref = NULL;
 	} else {
 		if (delim - str) {
 			s->lref = git__strndup(str, delim - str);
-			if (!s->lref ||
-			    check_ref(s->lref) < 0)
-				goto on_error;
+			check(s->lref);
 		} else
 			s->lref = NULL;
 
 		if (strlen(delim + 1)) {
 			s->rref = git__strdup(delim + 1);
-			if (!s->rref ||
-			    check_ref(s->rref) < 0)
-				goto on_error;
+			check(s->rref);
 		} else
 			s->rref = NULL;
 	}
+
+#undef check
 
 	*spec = s;
 	return 0;
@@ -168,13 +167,6 @@ on_error:
 int git_push_add_refspec(git_push *push, const char *refspec)
 {
 	push_spec *spec;
-
-	assert(push && refspec);
-
-	if (strchr(refspec, '*')) {
-		giterr_set(GITERR_INVALID, "No wildcard refspec supported");
-		return -1;
-	}
 
 	if (parse_refspec(&spec, refspec) < 0 ||
 	    git_vector_insert(&push->specs, spec) < 0)
@@ -388,8 +380,10 @@ static int queue_objects(git_push *push)
 	if (revwalk(&commits, push) < 0)
 		goto on_error;
 
-	if (!commits.length)
+	if (!commits.length) {
+		git_vector_free(&commits);
 		return 0; /* nothing to do */
+	}
 
 	git_vector_foreach(&commits, i, o) {
 		if (git_packbuilder_insert(push->pb, o, NULL) < 0)
