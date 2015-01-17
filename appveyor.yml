@@ -8,12 +8,11 @@ environment:
     ARCH: 32
   - GENERATOR: "Visual Studio 11 Win64"
     ARCH: 64
+install:
+  - cinst cmake
+  - cinst python2
 build_script:
 - ps: >-
-    choco install cmake
-
-    choco install python2
-
     mkdir build
 
     cd build
