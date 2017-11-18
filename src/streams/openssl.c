@@ -469,8 +469,6 @@ int openssl_connect(git_stream *stream)
 	if ((ret = git_stream_connect(st->io)) < 0)
 		return ret;
 
-	st->connected = true;
-
 	bio = BIO_new(git_stream_bio_method);
 	GITERR_CHECK_ALLOC(bio);
 
@@ -484,6 +482,8 @@ int openssl_connect(git_stream *stream)
 
 	if ((ret = SSL_connect(st->ssl)) <= 0)
 		return ssl_set_error(st->ssl, ret);
+
+	st->connected = true;
 
 	return verify_server_cert(st->ssl, st->host);
 }
