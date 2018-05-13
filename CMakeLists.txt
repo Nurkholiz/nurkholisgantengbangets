@@ -66,6 +66,10 @@ OPTION(ENABLE_WERROR			"Enable compilation with -Werror"			OFF)
 OPTION(USE_BUNDLED_ZLIB    		"Use the bundled version of zlib"			OFF)
 OPTION(DEPRECATE_HARD			"Do not include deprecated functions in the library"	OFF)
 
+IF (UNIX)
+	OPTION(USE_NTLMCLIENT		"Enable NTLM support on Unix."				ON )
+ENDIF()
+
 IF (UNIX AND NOT APPLE)
 	OPTION(ENABLE_REPRODUCIBLE_BUILDS "Enable reproducible builds"				OFF)
 ENDIF()
