@@ -24,8 +24,8 @@
 #include "streams/curl.h"
 
 git_http_auth_scheme auth_schemes[] = {
-	{ GIT_AUTHTYPE_NEGOTIATE, "Negotiate", GIT_CREDTYPE_DEFAULT, git_http_auth_negotiate },
-	{ GIT_AUTHTYPE_BASIC, "Basic", GIT_CREDTYPE_USERPASS_PLAINTEXT, git_http_auth_basic },
+	{ GIT_AUTHTYPE_NEGOTIATE, "Negotiate", GIT_CREDTYPE_DEFAULT, 0, git_http_auth_negotiate },
+	{ GIT_AUTHTYPE_BASIC, "Basic", GIT_CREDTYPE_USERPASS_PLAINTEXT, 1, git_http_auth_basic },
 };
 
 static const char *upload_pack_service = "upload-pack";
@@ -104,6 +104,12 @@ typedef struct {
 	size_t *bytes_read;
 } parser_context;
 
+static bool preauth_match(git_http_auth_scheme *scheme, void *data)
+{
+	unsigned int credtype = *(unsigned int *)data;
+	return scheme->preauth && !!(scheme->credtypes & credtype);
+}
+
 static bool credtype_match(git_http_auth_scheme *scheme, void *data)
 {
 	unsigned int credtype = *(unsigned int *)data;
@@ -166,23 +172,44 @@ static int auth_context_match(
 	return 0;
 }
 
-static int apply_credentials(git_buf *buf, http_subtransport *t)
+static int apply_preauthentication(git_buf *buf, http_subtransport *t)
 {
-	git_cred *cred = t->cred;
 	git_http_auth_context *context;
+	unsigned int credtype;
 
-	/* Apply the credentials given to us in the URL */
-	if (!cred && t->connection_data.user && t->connection_data.pass) {
-		if (!t->url_cred &&
-			git_cred_userpass_plaintext_new(&t->url_cred,
-				t->connection_data.user, t->connection_data.pass) < 0)
-			return -1;
+	if (!t->connection_data.user || !t->connection_data.pass)
+		return 0;
 
-		cred = t->url_cred;
-	}
+	if (!t->url_cred &&
+        git_cred_userpass_plaintext_new(&t->url_cred,
+            t->connection_data.user, t->connection_data.pass) < 0)
+		return -1;
+
+	if (!t->url_cred)
+		return 0;
+
+	credtype = t->url_cred->credtype;
+
+	if (auth_context_match(&context, t, preauth_match, &credtype) < 0)
+		return -1;
+	else if (!context)
+		return 0;
+
+	return context->next_token(buf, context, t->url_cred);
+}
+
+static int apply_authentication(git_buf *buf, http_subtransport *t)
+{
+	git_http_auth_context *context;
+	git_cred *cred = t->cred;
+
+	/*
+	 * We've not asked the caller for credentials but they've pre-
+	 * provided us with some (in the URL for example) so let's try them.
+	 */
 
 	if (!cred)
-		return 0;
+		return apply_preauthentication(buf, t);
 
 	/* Get or create a context for the best scheme for this cred type */
 	if (auth_context_match(&context, t, credtype_match, &cred->credtype) < 0)
@@ -224,7 +251,7 @@ static int gen_request(
 	}
 
 	/* Apply credentials to the request */
-	if (apply_credentials(buf, t) < 0)
+	if (apply_authentication(buf, t) < 0)
 		return -1;
 
 	git_buf_puts(buf, "\r\n");
