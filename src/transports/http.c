@@ -89,6 +89,7 @@ typedef struct {
 	unsigned parse_finished : 1;
 
 	/* Authentication */
+	git_http_authtype_t auth_server_types;
 	git_cred *cred;
 	git_cred *url_cred;
 	git_vector auth_contexts;
@@ -110,11 +111,17 @@ static bool preauth_match(git_http_auth_scheme *scheme, void *data)
 	return scheme->preauth && !!(scheme->credtypes & credtype);
 }
 
-static bool credtype_match(git_http_auth_scheme *scheme, void *data)
-{
-	unsigned int credtype = *(unsigned int *)data;
+typedef struct {
+	git_http_authtype_t server_types;
+	unsigned int credtype;
+} auth_match_data;
 
-	return !!(scheme->credtypes & credtype);
+static bool auth_match(git_http_auth_scheme *scheme, void *_data)
+{
+	auth_match_data *data = (auth_match_data *)_data;
+
+	return !!(data->server_types & scheme->type) &&
+	    !!(scheme->credtypes & data->credtype);
 }
 
 static bool challenge_match(git_http_auth_scheme *scheme, void *data)
@@ -188,6 +195,8 @@ static int apply_preauthentication(git_buf *buf, http_subtransport *t)
 	if (!t->url_cred)
 		return 0;
 
+	printf("url creds!\n");
+
 	credtype = t->url_cred->credtype;
 
 	if (auth_context_match(&context, t, preauth_match, &credtype) < 0)
@@ -201,19 +210,27 @@ static int apply_preauthentication(git_buf *buf, http_subtransport *t)
 static int apply_authentication(git_buf *buf, http_subtransport *t)
 {
 	git_http_auth_context *context;
+	auth_match_data data = {0};
 	git_cred *cred = t->cred;
 
 	/*
 	 * We've not asked the caller for credentials but they've pre-
 	 * provided us with some (in the URL for example) so let's try them.
 	 */
-
 	if (!cred)
 		return apply_preauthentication(buf, t);
 
+	data.server_types = t->auth_server_types;
+	data.credtype = cred->credtype;
+
 	/* Get or create a context for the best scheme for this cred type */
-	if (auth_context_match(&context, t, credtype_match, &cred->credtype) < 0)
+	if (auth_context_match(&context, t, auth_match, &data) < 0)
 		return -1;
+
+	if (!context) {
+		giterr_set(GITERR_NET, "no mechanism to authenticate with credential type");
+		return -1;
+	}
 
 	return context->next_token(buf, context, cred);
 }
@@ -281,6 +298,12 @@ static int parse_authenticate_response(
 			context->set_challenge(context, challenge) < 0)
 			return -1;
 
+		/*
+		 * Record both the supported mechs on the server and the
+		 * corresponding credential types so that we know what mech
+		 * to respond with when the user gives us a given cred type.
+		 */
+		t->auth_server_types |= context->type;
 		*allowed_types |= context->credtypes;
 	}
 
