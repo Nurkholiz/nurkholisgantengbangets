@@ -41,7 +41,7 @@ COVERITY_UNSUPPORTED=1 \
 
 # Upload results
 tar czf libgit2.tgz cov-int
-SHA=$(git rev-parse --short HEAD)
+SHA=$(cd ${SOURCE_DIR} && git rev-parse --short HEAD)
 
 HTML="$(curl \
 	--silent \
