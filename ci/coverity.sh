@@ -47,10 +47,10 @@ HTML="$(curl \
 	--silent \
 	--write-out "\n%{http_code}" \
 	--form token="$COVERITY_TOKEN" \
-	--form email=bs@github.com \
+	--form email=libgit2@gmail.com \
 	--form file=@libgit2.tgz \
 	--form version="$SHA" \
-	--form description="Travis build" \
+	--form description="libgit2 build" \
 	https://scan.coverity.com/builds?project=libgit2)"
 # Body is everything up to the last line
 BODY="$(echo "$HTML" | head -n-1)"
@@ -59,7 +59,7 @@ STATUS_CODE="$(echo "$HTML" | tail -n1)"
 
 echo "${BODY}"
 
-if [ "${STATUS_CODE}" != "201" ]; then
+if [ "${STATUS_CODE}" != "200" -a "${STATUS_CODE}" != "201" ]; then
 	echo "Received error code ${STATUS_CODE} from Coverity"
 	exit 1
 fi
