@@ -372,6 +372,21 @@ void test_online_clone__bitbucket_style(void)
 	cl_fixture_cleanup("./foo");
 }
 
+void test_online_clone__ntlm(void)
+{
+	git_cred_userpass_payload user_pass = {
+		"zapp\\ethomson", "3,mFBVcrWi7C&r+a"
+	};
+
+	g_options.fetch_opts.proxy_opts.type = GIT_PROXY_SPECIFIED;
+	g_options.fetch_opts.proxy_opts.url = "https://localhost:8888/";
+	g_options.fetch_opts.callbacks.credentials = git_cred_userpass;
+	g_options.fetch_opts.callbacks.payload = &user_pass;
+
+	cl_git_pass(git_clone(&g_repo, "https://zapp.edwardthomson.com/DefaultCollection/DemoProject/_git/TestRepository", "/tmp/test", &g_options));
+	git_repository_free(g_repo); g_repo = NULL;
+}
+
 void test_online_clone__bitbucket_uses_creds_in_url(void)
 {
 	git_cred_userpass_payload user_pass = {

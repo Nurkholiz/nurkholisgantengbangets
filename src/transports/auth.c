@@ -28,6 +28,8 @@ static int basic_next_token(
 
 	git_buf_printf(&raw, "%s:%s", cred->username, cred->password);
 
+	printf("authenticating: %s\n", raw.ptr);
+
 	if (git_buf_oom(&raw) ||
 		git_buf_puts(out, "Authorization: Basic ") < 0 ||
 		git_buf_encode_base64(out, git_buf_cstr(&raw), raw.size) < 0 ||

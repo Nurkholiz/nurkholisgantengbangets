@@ -363,12 +363,12 @@ ADD_FEATURE_INFO(SSH GIT_SSH "SSH transport support")
 
 # Optional external dependency: ntlmclient
 IF (USE_NTLMCLIENT)
-	SET(GIT_NTLMCLIENT 1)
+	SET(GIT_NTLM 1)
 	ADD_SUBDIRECTORY("${libgit2_SOURCE_DIR}/deps/ntlmclient" "${libgit2_BINARY_DIR}/deps/ntlmclient")
 	LIST(APPEND LIBGIT2_INCLUDES "${libgit2_SOURCE_DIR}/deps/ntlmclient")
 	LIST(APPEND LIBGIT2_OBJECTS "$<TARGET_OBJECTS:ntlmclient>")
 ENDIF()
-ADD_FEATURE_INFO(ntlmclient GIT_NTLMCLIENT "NTLM authentication support for Unix")
+ADD_FEATURE_INFO(ntlmclient GIT_NTLM "NTLM authentication support for Unix")
 
 # Optional external dependency: libgssapi
 IF (USE_GSSAPI)

@@ -35,4 +35,6 @@
 #cmakedefine GIT_SHA1_OPENSSL 1
 #cmakedefine GIT_SHA1_MBEDTLS 1
 
+#cmakedefine GIT_NTLM 1
+
 #endif
