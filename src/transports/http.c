@@ -619,7 +619,8 @@ static int http_connect(http_subtransport *t)
 
 	GITERR_CHECK_VERSION(t->io, GIT_STREAM_VERSION, "git_stream");
 
-	apply_proxy_config(t);
+	if ((error = apply_proxy_config(t)) < 0)
+		return error;
 
 	error = git_stream_connect(t->io);
 
