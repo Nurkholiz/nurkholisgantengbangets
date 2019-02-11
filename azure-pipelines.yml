@@ -9,15 +9,17 @@ resources:
 pool:
   vmImage: 'Ubuntu 16.04'
 
-container: centos
-
-steps:
-- script: /src/ci/build.sh
-- script: /src/ci/test.sh
-- task: publishtestresults@2
-  displayName: Publish Test Results
-  condition: succeededOrFailed()
-  inputs:
-    testResultsFiles: 'results_*.xml'
-    searchFolder: '$(Build.BinariesDirectory)'
-    mergeTestResults: true
+jobs:
+- job: CentOS
+  steps:
+  - script: /src/ci/build.sh
+    container: centos
+  - script: /src/ci/test.sh
+    container: centos
+  - task: publishtestresults@2
+    displayName: Publish Test Results
+    condition: succeededOrFailed()
+    inputs:
+      testResultsFiles: 'results_*.xml'
+      searchFolder: '$(Build.BinariesDirectory)'
+      mergeTestResults: true
