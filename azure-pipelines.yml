@@ -16,5 +16,4 @@ steps:
   condition: succeededOrFailed()
   inputs:
     testResultsFiles: 'results_*.xml'
-    searchFolder: '$(Build.BinariesDirectory)'
     mergeTestResults: true
