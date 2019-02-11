@@ -1,47 +1,23 @@
 resources:
-- repo: self
+  containers:
+  - container: centos
+    image: ethomson/libgit2-centos:latest
+    volumes:
+    - $(Build.SourcesDirectory):/src
+    - $(Build.BinariesDirectory):/build
 
-trigger:
-- master
+pool:
+  vmImage: 'Ubuntu 16.04'
 
-jobs:
-- job: centos
-  displayName: 'CentOS'
-  pool:
-    vmImage: 'Ubuntu 16.04'
-  steps:
-  - task: docker@0
-    displayName: Build
-    inputs:
-      action: 'Run an image'
-      imageName: ethomson/libgit2-centos:latest
-      volumes: |
-       $(Build.SourcesDirectory):/src
-       $(Build.BinariesDirectory):/build
-      envVars: |
-       Build.SourcesDirectory=/src
-       Build.BinariesDirectory=/build
-      workDir: '/build'
-      containerCommand: '/src/ci/build.sh'
-      detached: false
-  - task: docker@0
-    displayName: Test
-    inputs:
-      action: 'Run an image'
-      imageName: ethomson/libgit2-centos:latest
-      volumes: |
-       $(Build.SourcesDirectory):/src
-       $(Build.BinariesDirectory):/build
-      envVars: |
-       Build.SourcesDirectory=/src
-       Build.BinariesDirectory=/build
-      workDir: '/build'
-      containerCommand: '/src/ci/test.sh'
-      detached: false
-  - task: publishtestresults@2
-    displayName: Publish Test Results
-    condition: succeededOrFailed()
-    inputs:
-      testResultsFiles: 'results_*.xml'
-      searchFolder: '$(Build.BinariesDirectory)'
-      mergeTestResults: true
+container: centos
+
+steps:
+- script: /src/ci/build.sh
+- script: /src/ci/test.sh
+- task: publishtestresults@2
+  displayName: Publish Test Results
+  condition: succeededOrFailed()
+  inputs:
+    testResultsFiles: 'results_*.xml'
+    searchFolder: '$(Build.BinariesDirectory)'
+    mergeTestResults: true
