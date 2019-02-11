@@ -10,7 +10,11 @@ container: centos
 
 steps:
 - script: $(Build.SourcesDirectory)/ci/build.sh
+  displayName: Build
+  workingDirectory: $(Build.BinariesDirectory)
 - script: $(Build.SourcesDirectory)/ci/test.sh
+  displayName: Test
+  workingDirectory: $(Build.BinariesDirectory)
 - task: publishtestresults@2
   displayName: Publish Test Results
   condition: succeededOrFailed()
