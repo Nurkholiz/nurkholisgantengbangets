@@ -3,8 +3,8 @@ resources:
   - container: centos
     image: ethomson/libgit2-centos:latest
     volumes:
-    - '$(Build.SourcesDirectory)':/src
-    - '$(Build.BinariesDirectory)':/build
+    - $(Build.SourcesDirectory):/src
+    - $(Build.BinariesDirectory):/build
 
 pool:
   vmImage: 'Ubuntu 16.04'
