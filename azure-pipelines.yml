@@ -9,6 +9,8 @@ resources:
 pool:
   vmImage: 'Ubuntu 16.04'
 
+container: centos
+
 steps:
 - script: /src/ci/build.sh
 - script: /src/ci/test.sh
