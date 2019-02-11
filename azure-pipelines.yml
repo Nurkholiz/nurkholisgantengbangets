@@ -2,9 +2,6 @@ resources:
   containers:
   - container: centos
     image: ethomson/libgit2-centos:latest
-    volumes:
-    - $(Build.SourcesDirectory):/src
-    - $(Build.BinariesDirectory):/build
 
 pool:
   vmImage: 'Ubuntu 16.04'
@@ -12,8 +9,8 @@ pool:
 container: centos
 
 steps:
-- script: /src/ci/build.sh
-- script: /src/ci/test.sh
+- script: $(Build.SourcesDirectory)/ci/build.sh
+- script: $(Build.SourcesDirectory)/ci/test.sh
 - task: publishtestresults@2
   displayName: Publish Test Results
   condition: succeededOrFailed()
