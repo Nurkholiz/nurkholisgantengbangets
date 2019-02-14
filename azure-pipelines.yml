@@ -14,10 +14,10 @@ jobs:
   steps:
   - template: azure-pipelines/bash.yml
     parameters:
-      environmentVariables: |
-       CC=gcc
-       CMAKE_OPTIONS=-DUSE_HTTPS=OpenSSL -DDEPRECATE_HARD=ON
-       LEAK_CHECK=valgrind
+      environmentVariables:
+        CC: gcc
+        CMAKE_OPTIONS: -DUSE_HTTPS=OpenSSL -DDEPRECATED_HARD=ON
+        LEAK_CHECK: valgrind
 
 - job: linux_amd64_trusty_gcc_mbedtls
   displayName: 'Linux (amd64; Trusty; GCC; mbedTLS)'
