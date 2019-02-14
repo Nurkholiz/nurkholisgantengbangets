@@ -29,6 +29,8 @@ jobs:
     vmImage: 'Ubuntu 16.04'
   container: bionic-arm64
   steps:
+  - script: docker run --rm --privileged multiarch/qemu-user-static:register --reset
+    displayName: 'Register Docker QEMU'
   - template: azure-pipelines/bash.yml
     parameters:
       environmentVariables:
