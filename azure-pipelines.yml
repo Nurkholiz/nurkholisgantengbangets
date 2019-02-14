@@ -1,5 +1,7 @@
 resources:
-- repo: self
+  containers:
+  - container: trusty-amd64
+    image: libgit2/trusty-amd64:latest
 
 trigger:
 - master
@@ -8,12 +10,10 @@ trigger:
 jobs:
 - job: linux_amd64_trusty_gcc_openssl
   displayName: 'Linux (amd64; Trusty; GCC; OpenSSL)'
-  pool:
-    vmImage: 'Ubuntu 16.04'
+  container: trusty-amd64
   steps:
-  - template: azure-pipelines/docker.yml
+  - template: azure-pipelines/bash.yml
     parameters:
-      imageName: 'libgit2/trusty-amd64:latest'
       environmentVariables: |
        CC=gcc
        CMAKE_OPTIONS=-DUSE_HTTPS=OpenSSL -DDEPRECATE_HARD=ON
