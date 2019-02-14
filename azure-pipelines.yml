@@ -31,7 +31,7 @@ jobs:
   steps:
   - template: azure-pipelines/bash.yml
     parameters:
-	  environmentVariables:
+      environmentVariables:
         CC: gcc
         CMAKE_OPTIONS: -DUSE_HTTPS=OpenSSL -DDEPRECATE_HARD=ON
         RUN_INVASIVE_TESTS: true
