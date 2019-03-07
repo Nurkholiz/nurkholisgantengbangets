@@ -47,6 +47,12 @@ typedef struct {
 	/** Credential types this scheme supports */
 	git_credtype_t credtypes;
 
+	/**
+	 * If this scheme supports "preauthentication" (sending credentials
+	 * on the first request, before a challenge from the server).
+	 */
+	int preauth;
+
 	/** Function to initialize an authentication context */
 	int (*init_context)(
 		git_http_auth_context **out,

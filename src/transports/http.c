@@ -23,8 +23,8 @@
 #include "streams/socket.h"
 
 git_http_auth_scheme auth_schemes[] = {
-	{ GIT_AUTHTYPE_NEGOTIATE, "Negotiate", GIT_CREDTYPE_DEFAULT, git_http_auth_negotiate },
-	{ GIT_AUTHTYPE_BASIC, "Basic", GIT_CREDTYPE_USERPASS_PLAINTEXT, git_http_auth_basic },
+	{ GIT_AUTHTYPE_NEGOTIATE, "Negotiate", GIT_CREDTYPE_DEFAULT, 0, git_http_auth_negotiate },
+	{ GIT_AUTHTYPE_BASIC, "Basic", GIT_CREDTYPE_USERPASS_PLAINTEXT, 1, git_http_auth_basic },
 };
 
 static const char *upload_pack_service = "upload-pack";
@@ -74,6 +74,7 @@ typedef struct {
 	gitno_connection_data url;
 	git_stream *stream;
 
+	git_http_authtype_t server_types;
 	git_cred *cred;
 	git_cred *url_cred;
 
@@ -120,13 +121,6 @@ typedef struct {
 	size_t *bytes_read;
 } parser_context;
 
-static bool credtype_match(git_http_auth_scheme *scheme, void *data)
-{
-	unsigned int credtype = *(unsigned int *)data;
-
-	return !!(scheme->credtypes & credtype);
-}
-
 static bool challenge_match(git_http_auth_scheme *scheme, void *data)
 {
 	const char *scheme_name = scheme->name;
@@ -136,6 +130,25 @@ static bool challenge_match(git_http_auth_scheme *scheme, void *data)
 	scheme_len = strlen(scheme_name);
 	return (strncasecmp(challenge, scheme_name, scheme_len) == 0 &&
 		(challenge[scheme_len] == '\0' || challenge[scheme_len] == ' '));
+}
+
+static bool preauth_match(git_http_auth_scheme *scheme, void *data)
+{
+	unsigned int credtype = *(unsigned int *)data;
+	return scheme->preauth && !!(scheme->credtypes & credtype);
+}
+
+typedef struct {
+	git_http_authtype_t server_types;
+	unsigned int credtype;
+} authmatch_data;
+
+static bool auth_match(git_http_auth_scheme *scheme, void *_data)
+{
+	authmatch_data *data = (authmatch_data *)_data;
+
+	return !!(data->server_types & scheme->type) &&
+	       !!(scheme->credtypes & data->credtype);
 }
 
 static int auth_context_match(
@@ -182,34 +195,76 @@ static int auth_context_match(
 	return 0;
 }
 
-static int apply_credentials(
+static int apply_preauthentication(
+	git_buf *buf,
+	http_server *server,
+	const char *header_name)
+{
+	git_http_auth_context *context;
+	unsigned int credtype;
+
+	if (!server->url.user || !server->url.pass)
+		return 0;
+
+	if (!server->url_cred &&
+		git_cred_userpass_plaintext_new(&server->url_cred,
+			server->url.user, server->url.pass) < 0)
+		return -1;
+
+	if (!server->url_cred)
+		return 0;
+
+	credtype = server->url_cred->credtype;
+
+	/*
+	 * Try to find a scheme that supports pre-authentication (ie,
+	 * Basic).  No error if there isn't one, we'll do a round-trip
+	 * to the server to negotiate mechanisms.
+	 */
+	if (auth_context_match(&context, server, preauth_match, &credtype) < 0)
+		return -1;
+	else if (!context)
+		return 0;
+
+	return context->next_token(buf, context, header_name, server->url_cred);
+}
+
+static int apply_authentication(
 	git_buf *buf,
 	http_server *server,
 	const char *header_name)
 {
 	git_cred *cred = server->cred;
-	git_http_auth_context *context;
+	git_http_auth_context *context = NULL;
+	authmatch_data data = {0};
 
-	/* Apply the credentials given to us in the URL */
-	if (!cred && server->url.user && server->url.pass) {
-		if (!server->url_cred &&
-			git_cred_userpass_plaintext_new(&server->url_cred,
-			    server->url.user, server->url.pass) < 0)
-			return -1;
+	/*
+	 * We have not asked the caller for credentials from a callback;
+	 * see if they've pre-provided us with some (in the URL, for example).
+	 */
+	if (!cred)
+		return apply_preauthentication(buf, server, header_name);
 
-		cred = server->url_cred;
-	}
+	if (!server->server_types)
+		return 0;
 
+	/*
+	 * If we do have creds, find the first mechanism supported by both
+	 * the server and ourselves that supports the credential type.
+	 */
 	if (!cred)
 		return 0;
 
-	/* Get or create a context for the best scheme for this cred type */
-	if (auth_context_match(&context, server,
-	    credtype_match, &cred->credtype) < 0)
+	data.server_types = server->server_types;
+	data.credtype = cred->credtype;
+
+	if (auth_context_match(&context, server, auth_match, &data) < 0)
 		return -1;
 
-	if (!context)
-		return 0;
+	if (!context) {
+		git_error_set(GIT_ERROR_NET, "no suitable mechanism found for authentication");
+		return -1;
+	}
 
 	return context->next_token(buf, context, header_name, cred);
 }
@@ -261,10 +316,10 @@ static int gen_request(
 
 	/* Apply proxy and server credentials to the request */
 	if (t->proxy_opts.type != GIT_PROXY_NONE &&
-	    apply_credentials(buf, &t->proxy, AUTH_HEADER_PROXY) < 0)
+	    apply_authentication(buf, &t->proxy, AUTH_HEADER_PROXY) < 0)
 		return -1;
 
-	if (apply_credentials(buf, &t->server, AUTH_HEADER_SERVER) < 0)
+	if (apply_authentication(buf, &t->server, AUTH_HEADER_SERVER) < 0)
 		return -1;
 
 	git_buf_puts(buf, "\r\n");
@@ -277,7 +332,7 @@ static int gen_request(
 
 static int parse_authenticate_response(
 	http_server *server,
-	int *allowed_types)
+	int *allowed_credtypes)
 {
 	git_http_auth_context *context;
 	char *challenge;
@@ -294,7 +349,8 @@ static int parse_authenticate_response(
 			context->set_challenge(context, challenge) < 0)
 			return -1;
 
-		*allowed_types |= context->credtypes;
+		server->server_types |= context->type;
+		*allowed_credtypes |= context->credtypes;
 	}
 
 	return 0;
@@ -327,12 +383,16 @@ static int on_header_ready(http_subtransport *t)
 		char *dup = git__strdup(git_buf_cstr(value));
 		GIT_ERROR_CHECK_ALLOC(dup);
 
+		t->proxy.server_types = 0;
+
 		if (git_vector_insert(&t->proxy.auth_challenges, dup) < 0)
 			return -1;
 	}
 	else if (!strcasecmp("WWW-Authenticate", git_buf_cstr(name))) {
 		char *dup = git__strdup(git_buf_cstr(value));
 		GIT_ERROR_CHECK_ALLOC(dup);
+
+		t->server.server_types = 0;
 
 		if (git_vector_insert(&t->server.auth_challenges, dup) < 0)
 			return -1;
@@ -453,7 +513,7 @@ static int on_headers_complete(http_parser *parser)
 	http_subtransport *t = ctx->t;
 	http_stream *s = ctx->s;
 	git_buf buf = GIT_BUF_INIT;
-	int proxy_auth_types = 0, server_auth_types = 0;
+	int proxy_credtypes = 0, server_credtypes = 0;
 
 	/* Enforce a reasonable cap on the number of replays */
 	if (t->replay_count++ >= GIT_HTTP_REPLAY_MAX) {
@@ -472,8 +532,8 @@ static int on_headers_complete(http_parser *parser)
 	 * these may be 407/401 (authentication is not complete) or a 200
 	 * (informing us that auth has completed).
 	 */
-	if (parse_authenticate_response(&t->proxy, &proxy_auth_types) < 0 ||
-	    parse_authenticate_response(&t->server, &server_auth_types) < 0)
+	if (parse_authenticate_response(&t->proxy, &proxy_credtypes) < 0 ||
+	    parse_authenticate_response(&t->server, &server_credtypes) < 0)
 		return t->parse_error = PARSE_ERROR_GENERIC;
 
 	/* Check for a proxy authentication failure. */
@@ -485,7 +545,7 @@ static int on_headers_complete(http_parser *parser)
 		    t->proxy_opts.credentials,
 		    t->proxy_opts.payload,
 		    t->proxy.url.user,
-			proxy_auth_types);
+			proxy_credtypes);
 
 	/* Check for an authentication failure. */
 	if (parser->status_code == 401 && get_verb == s->verb)
@@ -496,7 +556,7 @@ static int on_headers_complete(http_parser *parser)
 		    t->owner->cred_acquire_cb,
 		    t->owner->cred_acquire_payload,
 		    t->server.url.user,
-		    server_auth_types);
+		    server_credtypes);
 
 	/* Check for a redirect.
 	 * Right now we only permit a redirect to the same hostname. */
@@ -770,7 +830,7 @@ static int gen_connect_req(git_buf *buf, http_subtransport *t)
 
 	git_buf_printf(buf, "Host: %s\r\n", t->proxy.url.host);
 
-	if (apply_credentials(buf, &t->proxy, AUTH_HEADER_PROXY) < 0)
+	if (apply_authentication(buf, &t->proxy, AUTH_HEADER_PROXY) < 0)
 		return -1;
 
 	git_buf_puts(buf, "\r\n");
@@ -782,7 +842,7 @@ static int proxy_headers_complete(http_parser *parser)
 {
 	parser_context *ctx = (parser_context *) parser->data;
 	http_subtransport *t = ctx->t;
-	int proxy_auth_types = 0;
+	int proxy_credtypes = 0;
 
 	/* Enforce a reasonable cap on the number of replays */
 	if (t->replay_count++ >= GIT_HTTP_REPLAY_MAX) {
@@ -801,7 +861,7 @@ static int proxy_headers_complete(http_parser *parser)
 	 * these may be 407/401 (authentication is not complete) or a 200
 	 * (informing us that auth has completed).
 	 */
-	if (parse_authenticate_response(&t->proxy, &proxy_auth_types) < 0)
+	if (parse_authenticate_response(&t->proxy, &proxy_credtypes) < 0)
 		return t->parse_error = PARSE_ERROR_GENERIC;
 
 	/* Check for a proxy authentication failure. */
@@ -813,7 +873,7 @@ static int proxy_headers_complete(http_parser *parser)
 			t->proxy_opts.credentials,
 			t->proxy_opts.payload,
 			t->proxy.url.user,
-			proxy_auth_types);
+			proxy_credtypes);
 
 	if (parser->status_code != 200) {
 		git_error_set(GIT_ERROR_NET, "unexpected status code from proxy: %d",
