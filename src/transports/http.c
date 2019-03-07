@@ -1080,9 +1080,11 @@ static int http_stream_read(
 	http_subtransport *t = OWNING_SUBTRANSPORT(s);
 	parser_context ctx;
 	size_t bytes_parsed;
+	bool auth_replay;
 
 replay:
 	*bytes_read = 0;
+	auth_replay = false;
 
 	assert(t->connected);
 
@@ -1128,7 +1130,6 @@ replay:
 
 	while (!*bytes_read && !t->parse_finished) {
 		size_t data_offset;
-		int error;
 
 		/*
 		 * Make the parse_buffer think it's as full of data as
@@ -1149,15 +1150,18 @@ replay:
 		if (gitno_recv(&t->parse_buffer) < 0)
 			return -1;
 
-		/* This call to http_parser_execute will result in invocations of the
-		 * on_* family of callbacks. The most interesting of these is
-		 * on_body_fill_buffer, which is called when data is ready to be copied
-		 * into the target buffer. We need to marshal the buffer, buf_size, and
-		 * bytes_read parameters to this callback. */
+		/*
+		 * This call to http_parser_execute will result in invocations
+		 * of the on_* family of callbacks, including on_body_fill_buffer
+		 * which will write into the target buffer.  Set up the buffer
+		 * for it to write into _unless_ we got an auth failure; in
+		 * that case we only care about the headers and don't need to
+		 * bother copying the body.
+		 */
 		ctx.t = t;
 		ctx.s = s;
-		ctx.buffer = buffer;
-		ctx.buf_size = buf_size;
+		ctx.buffer = auth_replay ? NULL : buffer;
+		ctx.buf_size = auth_replay ? 0 : buf_size;
 		ctx.bytes_read = bytes_read;
 
 		/* Set the context, call the parser, then unset the context. */
@@ -1170,22 +1174,12 @@ replay:
 
 		t->parser.data = NULL;
 
-		/* If there was a handled authentication failure, then parse_error
-		 * will have signaled us that we should replay the request. */
-		if (PARSE_ERROR_REPLAY == t->parse_error) {
-			s->sent_request = 0;
-
-			if ((error = http_connect(t)) < 0)
-				return error;
-
-			goto replay;
-		}
-
-		if (t->parse_error == PARSE_ERROR_EXT) {
+		/* On a 401, read the rest of the response then retry. */
+		if (t->parse_error == PARSE_ERROR_REPLAY)
+			auth_replay = true;
+		else if (t->parse_error == PARSE_ERROR_EXT)
 			return t->error;
-		}
-
-		if (t->parse_error < 0)
+		else if (t->parse_error < 0)
 			return -1;
 
 		if (bytes_parsed != t->parse_buffer.offset - data_offset) {
@@ -1194,6 +1188,17 @@ replay:
 				http_errno_description((enum http_errno)t->parser.http_errno));
 			return -1;
 		}
+	}
+
+	if (auth_replay) {
+		int error;
+
+		s->sent_request = 0;
+
+		if ((error = http_connect(t)) < 0)
+			return error;
+
+		goto replay;
 	}
 
 	return 0;
