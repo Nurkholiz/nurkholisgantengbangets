@@ -51,6 +51,8 @@ static const char *post_verb = "POST";
 /** Look at the user field */
 #define PARSE_ERROR_EXT         -3
 
+#define PROXY_RECONNECT 1
+
 #define CHUNK_SIZE	4096
 
 enum last_cb {
@@ -976,8 +978,12 @@ replay:
 		}
 	}
 
-	if (auth_replay)
-		goto replay;
+    if (auth_replay) {
+        if (t->keepalive && t->parse_finished)
+            goto replay;
+        else
+            return PROXY_RECONNECT;
+	}
 
 	if ((error = git_tls_stream_wrap(out, proxy_stream, t->server.url.host)) == 0)
 		error = stream_connect(*out, &t->server.url,
@@ -1003,6 +1009,7 @@ static int http_connect(http_subtransport *t)
 	void *cb_payload;
 	int error;
 
+replay:
 	if (t->connected && t->keepalive && t->parse_finished)
 		return 0;
 
@@ -1054,8 +1061,16 @@ static int http_connect(http_subtransport *t)
 		proxy_stream = stream;
 		stream = NULL;
 
-		if ((error = proxy_connect(&stream, proxy_stream, t)) < 0)
+		error = proxy_connect(&stream, proxy_stream, t);
+
+		if (error == PROXY_RECONNECT) {
+			git_stream_close(proxy_stream);
+			git_stream_free(proxy_stream);
+
+			goto replay;
+		} else if (error < 0) {
 			goto on_error;
+		}
 	}
 
 	t->proxy.stream = proxy_stream;
