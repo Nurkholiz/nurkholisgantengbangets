@@ -1102,6 +1102,7 @@ static int http_stream_read(
 	http_subtransport *t = OWNING_SUBTRANSPORT(s);
 	parser_context ctx;
 	size_t bytes_parsed;
+	int connected = 1;
 	bool auth_replay;
 
 replay:
@@ -1150,7 +1151,7 @@ replay:
 		s->received_response = 1;
 	}
 
-	while (!*bytes_read && !t->parse_finished) {
+	while (connected && !*bytes_read && !t->parse_finished) {
 		size_t data_offset;
 
 		/*
@@ -1169,7 +1170,7 @@ replay:
 
 		data_offset = t->parse_buffer.offset;
 
-		if (gitno_recv(&t->parse_buffer) < 0)
+		if ((connected = gitno_recv(&t->parse_buffer)) < 0)
 			return -1;
 
 		/*
@@ -1210,6 +1211,12 @@ replay:
 				http_errno_description((enum http_errno)t->parser.http_errno));
 			return -1;
 		}
+	}
+
+	/* read returned 0; we got an eof before a complete message */
+	if (!*bytes_read && !t->parse_finished) {
+		git_error_set(GIT_ERROR_NET, "premature end of file");
+		return -1;
 	}
 
 	if (auth_replay) {
