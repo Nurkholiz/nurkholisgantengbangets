@@ -19,6 +19,7 @@ typedef struct {
 	git_http_auth_context parent;
 	ntlm_client *ntlm;
 	char *challenge;
+	bool complete;
 } http_auth_ntlm_context;
 
 static int ntlm_set_challenge(
@@ -89,6 +90,11 @@ static int ntlm_next_token(
 
 	challenge_len = ctx->challenge ? strlen(ctx->challenge) : 0;
 
+	if (ctx->complete) {
+		ntlm_client_reset(ctx->ntlm);
+		ctx->complete = false;
+	}
+
 	if (cred && ntlm_set_credentials(ctx, cred) != 0)
 		goto done;
 
@@ -130,6 +136,8 @@ static int ntlm_next_token(
 				ntlm_client_errmsg(ctx->ntlm));
 			goto done;
 		}
+
+		ctx->complete = true;
 	}
 
 	git_buf_printf(buf, "%s: NTLM ", header_name);
