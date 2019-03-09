@@ -89,7 +89,7 @@ static int ntlm_next_token(
 
 	challenge_len = ctx->challenge ? strlen(ctx->challenge) : 0;
 
-	if (cred && (error = ntlm_set_credentials(ctx, cred)) < 0)
+	if (cred && ntlm_set_credentials(ctx, cred) != 0)
 		goto done;
 
 	if (challenge_len < 4) {
