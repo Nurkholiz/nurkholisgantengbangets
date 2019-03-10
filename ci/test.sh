@@ -79,8 +79,9 @@ fi
 
 if [ -z "$SKIP_PROXY_TESTS" ]; then
 	echo "Starting HTTP proxy..."
-	curl -L https://github.com/ethomson/poxyproxy/releases/download/v0.4.0/poxyproxy-0.4.0.jar >poxyproxy.jar
-	java -jar poxyproxy.jar -d --address 127.0.0.1 --port 8080 --credentials foo:bar --quiet &
+	curl -L https://github.com/ethomson/poxyproxy/releases/download/v0.5.0/poxyproxy-0.5.0.jar >poxyproxy.jar
+	java -jar poxyproxy.jar --address 127.0.0.1 --port 8080 --credentials basic_foo:basic_bar --auth-type basic --quiet &
+	java -jar poxyproxy.jar --address 127.0.0.1 --port 8090 --credentials ntlm_foo:ntlm_bar --auth-type ntlm --quiet &
 fi
 
 if [ -z "$SKIP_SSH_TESTS" ]; then
@@ -174,14 +175,26 @@ if [ -z "$SKIP_GITDAEMON_TESTS" ]; then
 fi
 
 if [ -z "$SKIP_PROXY_TESTS" ]; then
+	# Run against the Basic authenticating proxy
 	echo ""
-	echo "Running proxy tests"
+	echo "Running proxy tests (Basic authentication)"
 	echo ""
 
 	export GITTEST_REMOTE_PROXY_HOST="localhost:8080"
-	export GITTEST_REMOTE_PROXY_USER="foo"
-	export GITTEST_REMOTE_PROXY_PASS="bar"
+	export GITTEST_REMOTE_PROXY_USER="basic_foo"
+	export GITTEST_REMOTE_PROXY_PASS="basic_bar"
 	run_test proxy
+
+	# Run against the NTLM authenticating proxy
+	echo ""
+	echo "Running proxy tests (NTLM authentication)"
+	echo ""
+
+	export GITTEST_REMOTE_PROXY_HOST="localhost:8090"
+	export GITTEST_REMOTE_PROXY_USER="ntlm_foo"
+	export GITTEST_REMOTE_PROXY_PASS="ntlm_bar"
+	run_test proxy
+
 	unset GITTEST_REMOTE_PROXY_HOST
 	unset GITTEST_REMOTE_PROXY_USER
 	unset GITTEST_REMOTE_PROXY_PASS

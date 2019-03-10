@@ -40,8 +40,9 @@ Write-Host "####################################################################
 if (-not $Env:SKIP_PROXY_TESTS) {
 	Write-Host ""
 	Write-Host "Starting HTTP proxy..."
-	Invoke-WebRequest -Method GET -Uri https://github.com/ethomson/poxyproxy/releases/download/v0.4.0/poxyproxy-0.4.0.jar -OutFile poxyproxy.jar
-	javaw -jar poxyproxy.jar -d --port 8080 --credentials foo:bar --quiet
+	Invoke-WebRequest -Method GET -Uri https://github.com/ethomson/poxyproxy/releases/download/v0.5.0/poxyproxy-0.5.0.jar -OutFile poxyproxy.jar
+	javaw -jar poxyproxy.jar --port 8080 --credentials basic_foo:basic_bar --auth-type basic --quiet
+	javaw -jar poxyproxy.jar --port 8090 --credentials ntlm_foo:ntlm_bar --auth-type ntlm --quiet
 }
 
 Write-Host ""
@@ -76,14 +77,24 @@ if (-not $Env:SKIP_ONLINE_TESTS) {
 }
 
 if (-not $Env:SKIP_PROXY_TESTS) {
+	# Run against the Basic authenticating proxy
 	Write-Host ""
-	Write-Host "Running proxy tests"
+	Write-Host "Running proxy tests (Basic authentication)"
 	Write-Host ""
 
 	$Env:GITTEST_REMOTE_PROXY_HOST="localhost:8080"
-	$Env:GITTEST_REMOTE_PROXY_USER="foo"
-	$Env:GITTEST_REMOTE_PROXY_PASS="bar"
+	$Env:GITTEST_REMOTE_PROXY_USER="basic_foo"
+	$Env:GITTEST_REMOTE_PROXY_PASS="basic_bar"
+	run_test proxy
 
+	# Run against the NTLM authenticating proxy
+	Write-Host ""
+	Write-Host "Running proxy tests (NTLM authentication)"
+	Write-Host ""
+
+	$Env:GITTEST_REMOTE_PROXY_HOST="localhost:8090"
+	$Env:GITTEST_REMOTE_PROXY_USER="ntlm_foo"
+	$Env:GITTEST_REMOTE_PROXY_PASS="ntlm_bar"
 	run_test proxy
 
 	$Env:GITTEST_REMOTE_PROXY_HOST=$null
