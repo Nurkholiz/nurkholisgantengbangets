@@ -246,6 +246,20 @@ GIT_EXTERN(void) giterr_set_oom(void);
 
 /**@}*/
 
+/** @name Deprecated Object ID Types
+ *
+ * These types are retained for backward compatibility.  The newer
+ * versions of these values should be preferred in all new code.
+ *
+ * There is no plan to remove these backward compatibility values at
+ * this time.
+ */
+/**@{*/
+
+GIT_EXTERN(int) git_oid_iszero(const git_oid *id);
+
+/**@}*/
+
 /** @name Deprecated Transfer Progress Types
  *
  * These types are retained for backward compatibility.  The newer

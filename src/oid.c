@@ -237,7 +237,7 @@ int git_oid_streq(const git_oid *oid_a, const char *str)
 	return git_oid_strcmp(oid_a, str) == 0 ? 0 : -1;
 }
 
-int git_oid_iszero(const git_oid *oid_a)
+int git_oid_is_zero(const git_oid *oid_a)
 {
 	const unsigned char *a = oid_a->id;
 	unsigned int i;
