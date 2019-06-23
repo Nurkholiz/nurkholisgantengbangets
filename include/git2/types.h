@@ -36,31 +36,15 @@ GIT_BEGIN_DECL
 #include <stdint.h>
 #endif
 
+/** Time in seconds from the Unix epoch */
 #if defined(_MSC_VER)
-
-typedef __int64 git_off_t;
 typedef __time64_t git_time_t;
-
 #elif defined(__MINGW32__)
-
-typedef off64_t git_off_t;
 typedef __time64_t git_time_t;
-
 #elif defined(__HAIKU__)
-
-typedef __haiku_std_int64 git_off_t;
 typedef __haiku_std_int64 git_time_t;
-
-#else /* POSIX */
-
-/*
- * Note: Can't use off_t since if a client program includes <sys/types.h>
- * before us (directly or indirectly), they'll get 32 bit off_t in their client
- * app, even though /we/ define _FILE_OFFSET_BITS=64.
- */
-typedef int64_t git_off_t;
-typedef int64_t git_time_t; /**< time in seconds from epoch */
-
+#else
+typedef int64_t git_time_t;
 #endif
 
 /** The maximum size of an object */
