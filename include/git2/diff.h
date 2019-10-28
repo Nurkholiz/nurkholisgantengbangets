@@ -417,7 +417,7 @@ typedef struct {
 	 * automatically; pass a negative value to disable.
 	 * Defaults to 512MB.
 	 */
-	git_off_t   max_size;
+	int64_t     max_size;
 
 	/**
 	 * The virtual "directory" prefix for old file names in hunk headers.

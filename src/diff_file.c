@@ -48,7 +48,7 @@ static int diff_file_content_init_common(
 
 	if (opts && opts->max_size >= 0)
 		fc->opts_max_size = opts->max_size ?
-			opts->max_size : DIFF_MAX_FILESIZE;
+			(git_object_size_t)opts->max_size : DIFF_MAX_FILESIZE;
 
 	if (fc->src == GIT_ITERATOR_TYPE_EMPTY)
 		fc->src = GIT_ITERATOR_TYPE_TREE;
