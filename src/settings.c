@@ -62,29 +62,28 @@ extern size_t git_mwindow__mapped_limit;
 extern size_t git_indexer__max_objects;
 extern bool git_disable_pack_keep_file_checks;
 
-static int config_level_to_sysdir(int config_level)
+static int config_level_to_sysdir(int *out, int config_level)
 {
-	int val = -1;
-
 	switch (config_level) {
 	case GIT_CONFIG_LEVEL_SYSTEM:
-		val = GIT_SYSDIR_SYSTEM;
-		break;
+		*out = GIT_SYSDIR_SYSTEM;
+		return 0;
 	case GIT_CONFIG_LEVEL_XDG:
-		val = GIT_SYSDIR_XDG;
-		break;
+		*out = GIT_SYSDIR_XDG;
+		return 0;
 	case GIT_CONFIG_LEVEL_GLOBAL:
-		val = GIT_SYSDIR_GLOBAL;
-		break;
+		*out = GIT_SYSDIR_GLOBAL;
+		return 0;
 	case GIT_CONFIG_LEVEL_PROGRAMDATA:
-		val = GIT_SYSDIR_PROGRAMDATA;
-		break;
+		*out = GIT_SYSDIR_PROGRAMDATA;
+		return 0;
 	default:
-		git_error_set(
-			GIT_ERROR_INVALID, "invalid config path selector %d", config_level);
+		break;
 	}
 
-	return val;
+	git_error_set(
+		GIT_ERROR_INVALID, "invalid config path selector %d", config_level);
+	return -1;
 }
 
 extern char *git__user_agent;
@@ -125,12 +124,15 @@ int git_libgit2_opts(int key, ...)
 		break;
 
 	case GIT_OPT_GET_SEARCH_PATH:
-		if ((error = config_level_to_sysdir(va_arg(ap, int))) >= 0) {
+		{
+			int sysdir = va_arg(ap, int);
 			git_buf *out = va_arg(ap, git_buf *);
 			const git_buf *tmp;
+			int level;
 
-			git_buf_sanitize(out);
-			if ((error = git_sysdir_get(&tmp, error)) < 0)
+			if ((error = config_level_to_sysdir(&level, sysdir)) < 0 ||
+			    (error = git_buf_sanitize(out)) < 0 ||
+			    (error = git_sysdir_get(&tmp, level)) < 0)
 				break;
 
 			error = git_buf_sets(out, tmp->ptr);
@@ -138,8 +140,12 @@ int git_libgit2_opts(int key, ...)
 		break;
 
 	case GIT_OPT_SET_SEARCH_PATH:
-		if ((error = config_level_to_sysdir(va_arg(ap, int))) >= 0)
-			error = git_sysdir_set(error, va_arg(ap, const char *));
+		{
+			int level;
+
+			if ((error = config_level_to_sysdir(&level, va_arg(ap, int))) >= 0)
+				error = git_sysdir_set(level, va_arg(ap, const char *));
+		}
 		break;
 
 	case GIT_OPT_SET_CACHE_OBJECT_LIMIT:
@@ -168,8 +174,8 @@ int git_libgit2_opts(int key, ...)
 			git_buf *out = va_arg(ap, git_buf *);
 			const git_buf *tmp;
 
-			git_buf_sanitize(out);
-			if ((error = git_sysdir_get(&tmp, GIT_SYSDIR_TEMPLATE)) < 0)
+			if ((error = git_buf_sanitize(out)) < 0 ||
+			    (error = git_sysdir_get(&tmp, GIT_SYSDIR_TEMPLATE)) < 0)
 				break;
 
 			error = git_buf_sets(out, tmp->ptr);
@@ -238,7 +244,8 @@ int git_libgit2_opts(int key, ...)
 	case GIT_OPT_GET_USER_AGENT:
 		{
 			git_buf *out = va_arg(ap, git_buf *);
-			git_buf_sanitize(out);
+			if ((error = git_buf_sanitize(out)) < 0)
+				break;
 			error = git_buf_sets(out, git__user_agent);
 		}
 		break;

@@ -756,8 +756,13 @@ int git_diff_print_callback__to_file_handle(
 /* print a git_diff to a git_buf */
 int git_diff_to_buf(git_buf *out, git_diff *diff, git_diff_format_t format)
 {
+	int error;
+
 	assert(out && diff);
-	git_buf_sanitize(out);
+
+	if ((error = git_buf_sanitize(out)) < 0)
+		return error;
+
 	return git_diff_print(
 		diff, format, git_diff_print_callback__to_buf, out);
 }
@@ -796,7 +801,12 @@ int git_patch_print(
 /* print a git_patch to a git_buf */
 int git_patch_to_buf(git_buf *out, git_patch *patch)
 {
+	int error;
+
 	assert(out && patch);
-	git_buf_sanitize(out);
+
+	if ((error = git_buf_sanitize(out)) < 0)
+		return error;
+
 	return git_patch_print(patch, git_diff_print_callback__to_buf, out);
 }

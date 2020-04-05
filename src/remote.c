@@ -648,14 +648,17 @@ int git_remote_set_pushurl(git_repository *repo, const char *remote, const char*
 
 static int resolve_url(git_buf *resolved_url, const char *url, int direction, const git_remote_callbacks *callbacks)
 {
-	int status;
+	int status, error;
 
 	if (callbacks && callbacks->resolve_url) {
 		git_buf_clear(resolved_url);
 		status = callbacks->resolve_url(resolved_url, url, direction, callbacks->payload);
 		if (status != GIT_PASSTHROUGH) {
 			git_error_set_after_callback_function(status, "git_resolve_url_cb");
-			git_buf_sanitize(resolved_url);
+
+			if ((error = git_buf_sanitize(resolved_url)) < 0)
+				return error;
+
 			return status;
 		}
 	}
@@ -2386,7 +2389,9 @@ int git_remote_default_branch(git_buf *out, git_remote *remote)
 	if (strcmp(heads[0]->name, GIT_HEAD_FILE))
 		return GIT_ENOTFOUND;
 
-	git_buf_sanitize(out);
+	if ((error = git_buf_sanitize(out)) < 0)
+		return error;
+
 	/* the first one must be HEAD so if that has the symref info, we're done */
 	if (heads[0]->symref_target)
 		return git_buf_puts(out, heads[0]->symref_target);
