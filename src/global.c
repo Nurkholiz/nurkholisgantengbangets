@@ -51,8 +51,9 @@ char *git__ssl_ciphers;
 void git__on_shutdown(git_global_shutdown_fn callback)
 {
 	int count = git_atomic_inc(&git__n_shutdown_callbacks);
-	assert(count <= (int) ARRAY_SIZE(git__shutdown_callbacks) && count > 0);
-	git__shutdown_callbacks[count - 1] = callback;
+
+	if (count <= (int)ARRAY_SIZE(git__shutdown_callbacks) && count > 0)
+		git__shutdown_callbacks[count - 1] = callback;
 }
 
 static void git__global_state_cleanup(git_global_st *st)
@@ -216,7 +217,7 @@ git_global_st *git__global_state(void)
 {
 	git_global_st *ptr;
 
-	assert(git_atomic_get(&git__n_inits) > 0);
+	GIT_ASSERT_WITH_RETVAL(git_atomic_get(&git__n_inits) > 0, NULL);
 
 	if ((ptr = FlsGetValue(_fls_index)) != NULL)
 		return ptr;
@@ -307,7 +308,7 @@ git_global_st *git__global_state(void)
 {
 	git_global_st *ptr;
 
-	assert(git_atomic_get(&git__n_inits) > 0);
+	GIT_ASSERT_WITH_RETVAL(git_atomic_get(&git__n_inits) > 0, NULL);
 
 	if ((ptr = pthread_getspecific(_tls_key)) != NULL)
 		return ptr;
