@@ -147,7 +147,8 @@ int git_packbuilder_new(git_packbuilder **out, git_repository *repo)
 	if (git_oidmap_new(&pb->walk_objects) < 0)
 		goto on_error;
 
-	git_pool_init(&pb->object_pool, sizeof(struct walk_object));
+	if (git_pool_init(&pb->object_pool, sizeof(struct walk_object)) < 0)
+		goto on_error;
 
 	pb->repo = repo;
 	pb->nr_threads = 1; /* do not spawn any thread by default */

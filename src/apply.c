@@ -59,10 +59,12 @@ static int patch_image_init_fromstr(
 {
 	git_diff_line *line;
 	const char *start, *end;
+	int error;
 
 	memset(out, 0x0, sizeof(patch_image));
 
-	git_pool_init(&out->pool, sizeof(git_diff_line));
+	if ((error = git_pool_init(&out->pool, sizeof(git_diff_line))) < 0)
+		return error;
 
 	for (start = in; start < in + in_len; start = end) {
 		end = memchr(start, '\n', in_len - (start - in));

@@ -665,7 +665,9 @@ int git_revwalk_new(git_revwalk **revwalk_out, git_repository *repo)
 	if (git_pqueue_init(&walk->iterator_time, 0, 8, git_commit_list_time_cmp) < 0)
 		return -1;
 
-	git_pool_init(&walk->commit_pool, COMMIT_ALLOC);
+	if (git_pool_init(&walk->commit_pool, COMMIT_ALLOC) < 0)
+		return -1;
+
 	walk->get_next = &revwalk_next_unsorted;
 	walk->enqueue = &revwalk_enqueue_unsorted;
 
