@@ -23,7 +23,8 @@ int git_refspec__parse(git_refspec *refspec, const char *input, bool is_fetch)
 	const char *lhs, *rhs;
 	int flags;
 
-	assert(refspec && input);
+	GIT_ASSERT_ARG(refspec);
+	GIT_ASSERT_ARG(input);
 
 	memset(refspec, 0x0, sizeof(git_refspec));
 	refspec->push = !is_fetch;
@@ -164,7 +165,8 @@ void git_refspec__dispose(git_refspec *refspec)
 int git_refspec_parse(git_refspec **out_refspec, const char *input, int is_fetch)
 {
 	git_refspec *refspec;
-	assert(out_refspec && input);
+	GIT_ASSERT_ARG(out_refspec);
+	GIT_ASSERT_ARG(input);
 
 	*out_refspec = NULL;
 
@@ -203,7 +205,7 @@ const char *git_refspec_string(const git_refspec *refspec)
 
 int git_refspec_force(const git_refspec *refspec)
 {
-	assert(refspec);
+	GIT_ASSERT_ARG(refspec);
 
 	return refspec->force;
 }
@@ -245,7 +247,7 @@ static int refspec_transform(
 	from_star = strchr(from, '*');
 	to_star = strchr(to, '*');
 
-	assert(from_star && to_star);
+	GIT_ASSERT(from_star && to_star);
 
 	/* star offset, both in 'from' and in 'name' */
 	star_offset = from_star - from;
@@ -267,7 +269,9 @@ int git_refspec_transform(git_buf *out, const git_refspec *spec, const char *nam
 {
 	int error;
 
-	assert(out && spec && name);
+	GIT_ASSERT_ARG(out);
+	GIT_ASSERT_ARG(spec);
+	GIT_ASSERT_ARG(name);
 
 	if ((error = git_buf_sanitize(out)) < 0)
 		return error;
@@ -287,7 +291,9 @@ int git_refspec_rtransform(git_buf *out, const git_refspec *spec, const char *na
 {
 	int error;
 
-	assert(out && spec && name);
+	GIT_ASSERT_ARG(out);
+	GIT_ASSERT_ARG(spec);
+	GIT_ASSERT_ARG(name);
 
 	if ((error = git_buf_sanitize(out)) < 0)
 		return error;
@@ -317,14 +323,15 @@ int git_refspec__serialize(git_buf *out, const git_refspec *refspec)
 
 int git_refspec_is_wildcard(const git_refspec *spec)
 {
-	assert(spec && spec->src);
+	GIT_ASSERT_ARG(spec);
+	GIT_ASSERT_ARG(spec->src);
 
 	return (spec->src[strlen(spec->src) - 1] == '*');
 }
 
 git_direction git_refspec_direction(const git_refspec *spec)
 {
-	assert(spec);
+	GIT_ASSERT_ARG(spec);
 
 	return spec->push;
 }
@@ -343,7 +350,9 @@ int git_refspec__dwim_one(git_vector *out, git_refspec *spec, git_vector *refs)
 		NULL
 	};
 
-	assert(out && spec && refs);
+	GIT_ASSERT_ARG(out);
+	GIT_ASSERT_ARG(spec);
+	GIT_ASSERT_ARG(refs);
 
 	cur = git__calloc(1, sizeof(git_refspec));
 	GIT_ERROR_CHECK_ALLOC(cur);
