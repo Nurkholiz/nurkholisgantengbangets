@@ -223,7 +223,7 @@ int git_buf_put(git_buf *buf, const char *data, size_t len)
 	if (len) {
 		size_t new_size;
 
-		assert(data);
+		GIT_ASSERT_ARG(data);
 
 		GIT_ERROR_CHECK_ALLOC_ADD(&new_size, buf->size, len);
 		GIT_ERROR_CHECK_ALLOC_ADD(&new_size, new_size, 1);
@@ -237,7 +237,8 @@ int git_buf_put(git_buf *buf, const char *data, size_t len)
 
 int git_buf_puts(git_buf *buf, const char *string)
 {
-	assert(string);
+	GIT_ASSERT_ARG(string);
+
 	return git_buf_put(buf, string, strlen(string));
 }
 
@@ -317,7 +318,7 @@ int git_buf_decode_base64(git_buf *buf, const char *base64, size_t len)
 		return -1;
 	}
 
-	assert(len % 4 == 0);
+	GIT_ASSERT_ARG(len % 4 == 0);
 	GIT_ERROR_CHECK_ALLOC_ADD(&new_size, (len / 4 * 3), buf->size);
 	GIT_ERROR_CHECK_ALLOC_ADD(&new_size, new_size, 1);
 	ENSURE_SIZE(buf, new_size);
@@ -757,7 +758,7 @@ int git_buf_join(
 	ssize_t offset_a = -1;
 
 	/* not safe to have str_b point internally to the buffer */
-	assert(str_b < buf->ptr || str_b >= buf->ptr + buf->size);
+	GIT_ASSERT_ARG(str_b < buf->ptr || str_b >= buf->ptr + buf->size);
 
 	/* figure out if we need to insert a separator */
 	if (separator && strlen_a) {
@@ -807,9 +808,9 @@ int git_buf_join3(
 	char *tgt;
 
 	/* for this function, disallow pointers into the existing buffer */
-	assert(str_a < buf->ptr || str_a >= buf->ptr + buf->size);
-	assert(str_b < buf->ptr || str_b >= buf->ptr + buf->size);
-	assert(str_c < buf->ptr || str_c >= buf->ptr + buf->size);
+	GIT_ASSERT(str_a < buf->ptr || str_a >= buf->ptr + buf->size);
+	GIT_ASSERT(str_b < buf->ptr || str_b >= buf->ptr + buf->size);
+	GIT_ASSERT(str_c < buf->ptr || str_c >= buf->ptr + buf->size);
 
 	if (separator) {
 		if (len_a > 0) {
@@ -882,7 +883,9 @@ int git_buf_splice(
 	char *splice_loc;
 	size_t new_size, alloc_size;
 
-	assert(buf && where <= buf->size && nb_to_remove <= buf->size - where);
+	GIT_ASSERT(buf);
+	GIT_ASSERT(where <= buf->size);
+	GIT_ASSERT(nb_to_remove <= buf->size - where);
 
 	splice_loc = buf->ptr + where;
 
