@@ -289,6 +289,11 @@ IF (USE_LEAK_CHECKER STREQUAL "valgrind")
 	ADD_DEFINITIONS(-DVALGRIND)
 ENDIF()
 
+FILE(GLOB SRC_UTIL alloc.c alloc.h
+	buffer.c buffer.h buf_text.c buf_text.h
+	strarray.c strarray.h util.c util.h
+	allocators/*.c allocators/*.h)
+
 FILE(GLOB SRC_GIT2 *.c *.h
 	allocators/*.c allocators/*.h
 	streams/*.c streams/*.h
@@ -318,6 +323,19 @@ ELSE()
 ENDIF()
 
 CONFIGURE_FILE(features.h.in git2/sys/features.h)
+
+# Utility functions shared with other parts of the libgit2
+
+SET(UTIL_SOURCES ${SRC_UTIL})
+ADD_LIBRARY(git2util OBJECT ${UTIL_SOURCES})
+LIST(APPEND UTIL_OBJECTS $<TARGET_OBJECTS:git2util>)
+
+TARGET_INCLUDE_DIRECTORIES(git2util PRIVATE ${LIBGIT2_INCLUDES} PUBLIC ${libgit2_SOURCE_DIR}/include)
+TARGET_INCLUDE_DIRECTORIES(git2util SYSTEM PRIVATE ${LIBGIT2_SYSTEM_INCLUDES})
+
+SET(LIBGIT2_UTIL_OBJECTS ${UTIL_OBJECTS} PARENT_SCOPE)
+
+# libgit2 itself
 
 SET(LIBGIT2_SOURCES ${SRC_H} ${SRC_GIT2} ${SRC_OS} ${SRC_SSH} ${SRC_SHA1})
 
