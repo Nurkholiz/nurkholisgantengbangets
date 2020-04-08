@@ -289,16 +289,24 @@ IF (USE_LEAK_CHECKER STREQUAL "valgrind")
 	ADD_DEFINITIONS(-DVALGRIND)
 ENDIF()
 
-FILE(GLOB SRC_UTIL alloc.c alloc.h
-	buffer.c buffer.h buf_text.c buf_text.h
-	strarray.c strarray.h util.c util.h
+FILE(GLOB SRC_UTIL alloc.c alloc.h buffer.c buffer.h buf_text.c buf_text.h
+	futils.c futils.h hash.c hash.h ${SRC_SHA1} path.c path.h
+	pool.c pool.h posix.c posix.h strarray.c strarray.h
+	strmap.c strmap.h tsort.c util.c util.h vector.c vector.h
 	allocators/*.c allocators/*.h)
+
+IF (WIN32 AND NOT CYGWIN)
+ELSE()
+	FILE(GLOB SRC_UTIL_OS
+		unix/map.c unix/posix.h unix/pthread.h unix/realpath.c)
+ENDIF()
 
 FILE(GLOB SRC_GIT2 *.c *.h
 	allocators/*.c allocators/*.h
 	streams/*.c streams/*.h
 	transports/*.c transports/*.h
 	xdiff/*.c xdiff/*.h)
+
 IF(APPLE)
 	# The old Secure Transport API has been deprecated in macOS 10.15.
 	SET_SOURCE_FILES_PROPERTIES(streams/stransport.c PROPERTIES COMPILE_FLAGS -Wno-deprecated)
@@ -326,7 +334,7 @@ CONFIGURE_FILE(features.h.in git2/sys/features.h)
 
 # Utility functions shared with other parts of the libgit2
 
-SET(UTIL_SOURCES ${SRC_UTIL})
+SET(UTIL_SOURCES ${SRC_UTIL} ${SRC_UTIL_OS})
 ADD_LIBRARY(git2util OBJECT ${UTIL_SOURCES})
 LIST(APPEND UTIL_OBJECTS $<TARGET_OBJECTS:git2util>)
 
