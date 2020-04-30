@@ -8,7 +8,7 @@
 #ifndef INCLUDE_errors_h__
 #define INCLUDE_errors_h__
 
-#include "common.h"
+#include "util_common.h"
 
 /*
  * Set the error message for this thread, formatting as needed.

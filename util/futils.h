@@ -7,14 +7,13 @@
 #ifndef INCLUDE_futils_h__
 #define INCLUDE_futils_h__
 
-#include "common.h"
+#include "util_common.h"
 
 #include "map.h"
 #include "posix.h"
 #include "path.h"
 #include "pool.h"
 #include "strmap.h"
-#include "oid.h"
 
 /**
  * Filebuffer methods

@@ -7,7 +7,7 @@
 #ifndef INCLUDE_path_h__
 #define INCLUDE_path_h__
 
-#include "common.h"
+#include "util_common.h"
 
 #include "posix.h"
 #include "buffer.h"

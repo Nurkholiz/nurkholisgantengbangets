@@ -7,7 +7,7 @@
 #ifndef INCLUDE_pool_h__
 #define INCLUDE_pool_h__
 
-#include "common.h"
+#include "util_common.h"
 
 #include "vector.h"
 

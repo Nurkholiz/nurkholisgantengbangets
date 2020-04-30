@@ -7,7 +7,7 @@
 #ifndef INCLUDE_util_h__
 #define INCLUDE_util_h__
 
-#include "common.h"
+#include "util_common.h"
 
 #ifndef GIT_WIN32
 # include <ctype.h>
@@ -16,7 +16,7 @@
 #include "git2/buffer.h"
 
 #include "buffer.h"
-#include "common.h"
+#include "util_common.h"
 #include "strnlen.h"
 #include "thread-utils.h"
 

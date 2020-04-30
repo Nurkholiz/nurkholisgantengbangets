@@ -8,7 +8,7 @@
 #ifndef INCLUDE_hash_sha1_h__
 #define INCLUDE_hash_sha1_h__
 
-#include "common.h"
+#include "util_common.h"
 
 typedef struct git_hash_sha1_ctx git_hash_sha1_ctx;
 

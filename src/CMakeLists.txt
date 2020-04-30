@@ -16,6 +16,7 @@ SET(LIBGIT2_PC_LIBS "")
 
 SET(LIBGIT2_INCLUDES
 	"${CMAKE_CURRENT_BINARY_DIR}"
+	"${libgit2_SOURCE_DIR}/util"
 	"${libgit2_SOURCE_DIR}/src"
 	"${libgit2_SOURCE_DIR}/include")
 SET(LIBGIT2_SYSTEM_INCLUDES "")
@@ -26,30 +27,6 @@ IF(ENABLE_TRACE)
 	SET(GIT_TRACE 1)
 ENDIF()
 ADD_FEATURE_INFO(tracing GIT_TRACE "tracing support")
-
-CHECK_FUNCTION_EXISTS(futimens HAVE_FUTIMENS)
-IF (HAVE_FUTIMENS)
-	SET(GIT_USE_FUTIMENS 1)
-ENDIF ()
-
-CHECK_PROTOTYPE_DEFINITION(qsort_r
-	"void qsort_r(void *base, size_t nmemb, size_t size, void *thunk, int (*compar)(void *, const void *, const void *))"
-	"" "stdlib.h" HAVE_QSORT_R_BSD)
-IF (HAVE_QSORT_R_BSD)
-	ADD_DEFINITIONS(-DHAVE_QSORT_R_BSD)
-ENDIF()
-
-CHECK_PROTOTYPE_DEFINITION(qsort_r
-	"void qsort_r(void *base, size_t nmemb, size_t size, int (*compar)(const void *, const void *, void *), void *arg)"
-	"" "stdlib.h" HAVE_QSORT_R_GNU)
-IF (HAVE_QSORT_R_GNU)
-	ADD_DEFINITIONS(-DHAVE_QSORT_R_GNU)
-ENDIF()
-
-CHECK_FUNCTION_EXISTS(qsort_s HAVE_QSORT_S)
-IF (HAVE_QSORT_S)
-	ADD_DEFINITIONS(-DHAVE_QSORT_S)
-ENDIF ()
 
 # Find required dependencies
 
@@ -289,12 +266,6 @@ IF (USE_LEAK_CHECKER STREQUAL "valgrind")
 	ADD_DEFINITIONS(-DVALGRIND)
 ENDIF()
 
-FILE(GLOB SRC_UTIL alloc.c alloc.h buffer.c buffer.h buf_text.c buf_text.h
-	futils.c futils.h hash.c hash.h ${SRC_SHA1} path.c path.h
-	pool.c pool.h posix.c posix.h strarray.c strarray.h
-	strmap.c strmap.h tsort.c util.c util.h vector.c vector.h
-	allocators/*.c allocators/*.h)
-
 IF (WIN32 AND NOT CYGWIN)
 ELSE()
 	FILE(GLOB SRC_UTIL_OS
@@ -332,17 +303,6 @@ ENDIF()
 
 CONFIGURE_FILE(features.h.in git2/sys/features.h)
 
-# Utility functions shared with other parts of the libgit2
-
-SET(UTIL_SOURCES ${SRC_UTIL} ${SRC_UTIL_OS})
-ADD_LIBRARY(git2util OBJECT ${UTIL_SOURCES})
-LIST(APPEND UTIL_OBJECTS $<TARGET_OBJECTS:git2util>)
-
-TARGET_INCLUDE_DIRECTORIES(git2util PRIVATE ${LIBGIT2_INCLUDES} PUBLIC ${libgit2_SOURCE_DIR}/include)
-TARGET_INCLUDE_DIRECTORIES(git2util SYSTEM PRIVATE ${LIBGIT2_SYSTEM_INCLUDES})
-
-SET(LIBGIT2_UTIL_OBJECTS ${UTIL_OBJECTS} PARENT_SCOPE)
-
 # libgit2 itself
 
 SET(LIBGIT2_SOURCES ${SRC_H} ${SRC_GIT2} ${SRC_OS} ${SRC_SSH} ${SRC_SHA1})
@@ -369,7 +329,7 @@ ENDIF()
 
 # Compile and link libgit2
 ADD_LIBRARY(git2 ${WIN_RC} ${LIBGIT2_OBJECTS})
-TARGET_LINK_LIBRARIES(git2 ${LIBGIT2_LIBS})
+TARGET_LINK_LIBRARIES(git2 git2util ${LIBGIT2_LIBS})
 
 SET_TARGET_PROPERTIES(git2 PROPERTIES C_STANDARD 90)
 SET_TARGET_PROPERTIES(git2 PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${libgit2_BINARY_DIR})

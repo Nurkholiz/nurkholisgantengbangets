@@ -7,7 +7,7 @@
 
 #include "util.h"
 
-#include "common.h"
+#include "util_common.h"
 
 #ifdef GIT_WIN32
 # include "win32/utf-conv.h"

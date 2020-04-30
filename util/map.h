@@ -7,7 +7,7 @@
 #ifndef INCLUDE_map_h__
 #define INCLUDE_map_h__
 
-#include "common.h"
+#include "util_common.h"
 
 
 /* p_mmap() prot values */
